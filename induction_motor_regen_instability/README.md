@@ -84,11 +84,9 @@ $$
 
 にした場合、回生側で数Hz帯の発散または低減衰振動が出る。
 
-![regen waveform](./continuous_foc_regen_pi_kp_1_ki_over_s_2s.png)
 
 対照として、力行側は同じPI構成でも安定しやすい。
 
-![motoring waveform](./continuous_foc_motoring_pi_kp_1_ki_over_s_2s.png)
 
 ## 2. 軸ずれループによる原因説明
 
@@ -180,7 +178,6 @@ $$
 
 この符号反転により、同じ軸ずれでも、PIが作る $v_d$ の向きが力行と回生で反転する。
 
-![axis mixing vector diagram](./axis_mixing_motoring_regen_vector_diagram.png)
 
 ### 2.2 実すべり変動への変換
 
@@ -266,7 +263,6 @@ $$
 
 力行と回生の $L_{\delta}$ は以下である。
 
-![L delta motoring regen compare](./l_delta_motoring_regen_compare.png)
 
 重要なのは、ゲイン差ではなく位相差である。0 dB交差周波数は力行と回生でほぼ同じだが、回生だけ $-180^\circ$ 側に寄る。
 
@@ -333,7 +329,6 @@ $$
 
 に分けると以下になる。
 
-![iq contribution bode](./iq_contribution_bode.png)
 
 3.42 Hz付近では、
 
@@ -350,7 +345,6 @@ $$
 
 $\Delta\Phi$ への寄与は以下である。
 
-![phi contribution bode](./phi_contribution_bode.png)
 
 3.42 Hz付近では、
 
@@ -369,7 +363,6 @@ $\Delta\Phi$ 応答自体は力行と回生で大きく変わらない。力行/
 
 速度を振ると、回生側の交差位相は高回転ほど $-180^\circ$ 側へ寄る。
 
-![L delta speed sweep](./l_delta_speed_sweep_bode.png)
 
 | 運転 | 速度 | 0 dB交差周波数 | 位相 |
 |---|---:|---:|---:|
@@ -398,7 +391,6 @@ $$
 
 と定義する。$G_i(s)$ には、モータ磁束状態、磁束推定、滑り計算、非干渉項、制御角、dq座標変換を含める。
 
-![MIMO current-loop return ratio block diagram](./mimo_return_ratio_block_diagram.png)
 
 電流PIを
 
@@ -438,7 +430,6 @@ $$
 
 5000 r/min、`id_ref` 起点滑り、磁束フィードバック非干渉あり条件で、力行と回生を比較すると以下になる。
 
-![motoring vs regen MIMO current-loop return ratio](./full_current_loop_motoring_regen_compare.png)
 
 | 運転状態 | $\min|\det(I+L_i)|$ | 周波数 | 判定 |
 |---|---:|---:|---|
@@ -451,7 +442,6 @@ $$
 
 滑り計算に使う磁束を `id_ref` 起点から、`id_feedback` 起点、さらに実ロータ磁束へ近づけると、低周波の危険な谷は小さくなる。
 
-![full current-loop return ratio](./full_current_loop_return_ratio.png)
 
 | 滑り計算の磁束 | $\min|\det(I+L_i)|$ | 周波数 |
 |---|---:|---:|
@@ -473,7 +463,6 @@ $$
 
 `id_ref` 起点滑りのまま速度を振ると、高速ほど低周波の谷が深くなる。
 
-![full current-loop speed sweep idref](./full_current_loop_speed_sweep_idref.png)
 
 | 速度 | $\min|\det(I+L_i)|$ | 周波数 |
 |---:|---:|---:|
@@ -488,7 +477,6 @@ $$
 
 `id_ref` 起点滑り、5000 r/min回生で電流PIの比例ゲインを振ると以下になる。
 
-![full current-loop kp sweep idref](./full_current_loop_kp_sweep_idref.png)
 
 | $K_p$倍率 | $\min|\det(I+L_i)|$ | 周波数 |
 |---:|---:|---:|
@@ -503,7 +491,6 @@ $$
 
 全閉ループ状態を線形化して固有値を見ると、非干渉なしの連続系では回生だけ右半平面極が出る。
 
-![full closed-loop eigenvalues](./full_closed_loop_eigenvalues.png)
 
 代表値は以下である。
 
@@ -516,7 +503,6 @@ $$
 
 非干渉を含めた簡略モデルでは右半平面極までは出ないが、回生側の減衰は力行より小さく、高速ほど安定余裕が小さい。
 
-![full closed-loop speed torque sweep](./full_closed_loop_speed_torque_sweep.png)
 
 ## 4. 対策
 
