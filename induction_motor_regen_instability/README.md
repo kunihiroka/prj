@@ -31,7 +31,7 @@ $$
 
 が4.5 Hz付近で原点へ接近する。
 
-| 条件 | $\min|\det(I+L_i)|$ | 周波数 |
+| 条件 | $\min\lvert\det(I+L_i)\rvert$ | 周波数 |
 |---|---:|---:|
 | 力行 +220 Nm | 1.000 | 10000 Hz |
 | 回生 -220 Nm | 0.332 | 4.51 Hz |
@@ -440,7 +440,7 @@ $$
 
 ![motoring vs regen MIMO current-loop return ratio](./full_current_loop_motoring_regen_compare.png)
 
-| 運転状態 | $\min|\det(I+L_i)|$ | 周波数 | 判定 |
+| 運転状態 | $\min\lvert\det(I+L_i)\rvert$ | 周波数 | 判定 |
 |---|---:|---:|---|
 | 力行 +220 Nm | 1.000 | 10000 Hz | 低周波の危険な谷なし |
 | 回生 -220 Nm | 0.332 | 4.51 Hz | 4.5 Hz付近で原点へ接近 |
@@ -453,7 +453,7 @@ $$
 
 ![full current-loop return ratio](./full_current_loop_return_ratio.png)
 
-| 滑り計算の磁束 | $\min|\det(I+L_i)|$ | 周波数 |
+| 滑り計算の磁束 | $\min\lvert\det(I+L_i)\rvert$ | 周波数 |
 |---|---:|---:|
 | $i_{d,\mathrm{ref}}$ 起点 | 0.332 | 4.52 Hz |
 | $i_{d,\mathrm{feedback}}$ 起点 | 0.879 | 5.59 Hz |
@@ -475,7 +475,7 @@ $$
 
 ![full current-loop speed sweep idref](./full_current_loop_speed_sweep_idref.png)
 
-| 速度 | $\min|\det(I+L_i)|$ | 周波数 |
+| 速度 | $\min\lvert\det(I+L_i)\rvert$ | 周波数 |
 |---:|---:|---:|
 | 1000 r/min | 1.000 | 10000 Hz |
 | 3000 r/min | 1.000 | 10000 Hz |
@@ -490,7 +490,7 @@ $$
 
 ![full current-loop kp sweep idref](./full_current_loop_kp_sweep_idref.png)
 
-| $K_p$倍率 | $\min|\det(I+L_i)|$ | 周波数 |
+| $K_p$倍率 | $\min\lvert\det(I+L_i)\rvert$ | 周波数 |
 |---:|---:|---:|
 | 0% | 1.000 | 0.100 Hz |
 | 50% | 0.188 | 2.61 Hz |
