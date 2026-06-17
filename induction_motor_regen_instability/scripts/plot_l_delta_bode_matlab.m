@@ -16,6 +16,17 @@
 %    -> -               : Δδdot = - Δomega_slip_real
 %    -> 1/(jw)          : angle integration
 %
+% Because this definition already includes
+%
+%   Δδdot = - Δomega_slip_real,
+%
+% the characteristic equation of this reduced self-coupling model is
+%
+%   1 - L_delta(s) = 0.
+%
+% Therefore the danger point is L_delta = +1, or equivalently
+% D_delta = 1 - L_delta = 0.
+%
 % It compares motoring and regeneration at 5000 r/min, 220 Nm equivalent.
 
 clear; clc;
@@ -61,14 +72,14 @@ Lreg = calc_l_delta(IqReg, w, Rs, Rr, Ls, Lr, Lm, omegaR, Kp, Ki, Id0, Kslip);
 [fcMot, phMot] = first_zero_db_crossing(f, Lmot);
 [fcReg, phReg] = first_zero_db_crossing(f, Lreg);
 
-[distMot, idxMot] = min(abs(Lmot + 1));
-[distReg, idxReg] = min(abs(Lreg + 1));
+[distMot, idxMot] = min(abs(1 - Lmot));
+[distReg, idxReg] = min(abs(1 - Lreg));
 
 fprintf("motoring: 0 dB crossing = %.4g Hz, phase = %.2f deg\n", fcMot, phMot);
 fprintf("regen:    0 dB crossing = %.4g Hz, phase = %.2f deg\n", fcReg, phReg);
-fprintf("motoring: nearest to -1 at %.4g Hz, distance = %.4g, L = %.4g%+.4gj\n", ...
+fprintf("motoring: nearest to +1 / min |1-L| at %.4g Hz, |1-L| = %.4g, L = %.4g%+.4gj\n", ...
     f(idxMot), distMot, real(Lmot(idxMot)), imag(Lmot(idxMot)));
-fprintf("regen:    nearest to -1 at %.4g Hz, distance = %.4g, L = %.4g%+.4gj\n", ...
+fprintf("regen:    nearest to +1 / min |1-L| at %.4g Hz, |1-L| = %.4g, L = %.4g%+.4gj\n", ...
     f(idxReg), distReg, real(Lreg(idxReg)), imag(Lreg(idxReg)));
 
 %% Plot
@@ -98,26 +109,26 @@ legend("motoring +220 Nm", "regen -220 Nm", "Location", "best");
 subplot(2,2,2);
 plot(real(Lmot), imag(Lmot), "LineWidth", 1.8); hold on;
 plot(real(Lreg), imag(Lreg), "--", "LineWidth", 1.8);
-plot(-1, 0, "rx", "MarkerSize", 10, "LineWidth", 2);
+plot(1, 0, "rx", "MarkerSize", 10, "LineWidth", 2);
 grid on; axis equal;
-xlim([-2.5 1.0]);
+xlim([-1.0 2.5]);
 ylim([-1.75 1.75]);
 xlabel("Re{L_\delta(j\omega)}");
 ylabel("Im{L_\delta(j\omega)}");
-title("Nyquist around -1");
-legend("motoring", "regen", "-1+j0", "Location", "best");
+title("Nyquist of L_\delta; danger point = +1");
+legend("motoring", "regen", "+1+j0", "Location", "best");
 
 subplot(2,2,4);
-plot(real(Lmot), imag(Lmot), "LineWidth", 1.8); hold on;
-plot(real(Lreg), imag(Lreg), "--", "LineWidth", 1.8);
-plot(-1, 0, "rx", "MarkerSize", 10, "LineWidth", 2);
+plot(real(1 - Lmot), imag(1 - Lmot), "LineWidth", 1.8); hold on;
+plot(real(1 - Lreg), imag(1 - Lreg), "--", "LineWidth", 1.8);
+plot(0, 0, "rx", "MarkerSize", 10, "LineWidth", 2);
 grid on; axis equal;
-xlim([-12 3]);
-ylim([-7.5 7.5]);
-xlabel("Re{L_\delta(j\omega)}");
-ylabel("Im{L_\delta(j\omega)}");
-title("Nyquist medium range");
-legend("motoring", "regen", "-1+j0", "Location", "best");
+xlim([-1.5 3.0]);
+ylim([-1.75 1.75]);
+xlabel("Re{1-L_\delta(j\omega)}");
+ylabel("Im{1-L_\delta(j\omega)}");
+title("Characteristic D_\delta = 1-L_\delta");
+legend("motoring", "regen", "0+j0", "Location", "best");
 
 %% ===================== Local functions =====================
 
