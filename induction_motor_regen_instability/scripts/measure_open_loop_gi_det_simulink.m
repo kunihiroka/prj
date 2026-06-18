@@ -32,6 +32,8 @@
 % Notes:
 %   - Use small injection amplitude to stay in small-signal range.
 %   - For unstable closed-loop points, keep the current loop open while measuring Gi.
+%   - Injection is delayed by injStartTime so the model can settle before
+%     the sine perturbation starts.
 %   - This script assumes continuous or fixed-step simulation is already configured.
 
 clear; clc;
@@ -50,6 +52,7 @@ f_Hz = sort(f_Hz(:).');
 w = 2*pi*f_Hz;
 
 injAmp_V = 0.5;          % small voltage perturbation amplitude [V]
+injStartTime = 0.3;      % sine injection start time [s]
 settleCycles = 4;        % cycles discarded before fitting
 fitCycles = 6;           % cycles used for sine fitting
 pointsPerCycle = 200;    % only for injection waveform generation
@@ -79,7 +82,7 @@ for k = 1:numel(f_Hz)
     f = f_Hz(k);
     omega = 2*pi*f;
     T = 1/f;
-    tEnd = (settleCycles + fitCycles) * T;
+    tEnd = injStartTime + (settleCycles + fitCycles) * T;
     dt = T / pointsPerCycle;
     t = (0:dt:tEnd).';
 
@@ -87,7 +90,8 @@ for k = 1:numel(f_Hz)
 
     for inputAxis = 1:2
         inj = zeros(numel(t), 2);
-        inj(:, inputAxis) = injAmp_V * sin(omega*t);
+        injActive = t >= injStartTime;
+        inj(injActive, inputAxis) = injAmp_V * sin(omega*(t(injActive) - injStartTime));
         inj_ts = timeseries(inj, t);
         assignin("base", "inj_ts", inj_ts);
 
@@ -103,12 +107,13 @@ for k = 1:numel(f_Hz)
         [tout, id, iq] = extract_logged_currents(out);
 
         % Fit only final cycles to remove startup transient.
-        tFit0 = settleCycles * T;
+        tFit0 = injStartTime + settleCycles * T;
         idx = tout >= tFit0;
         tt = tout(idx);
         yy = [id(idx), iq(idx)];
 
-        U = fit_complex_sine(tt, injAmp_V*sin(omega*tt), omega);
+        uFit = injAmp_V * sin(omega*(tt - injStartTime));
+        U = fit_complex_sine(tt, uFit, omega);
         for outputAxis = 1:2
             Y = fit_complex_sine(tt, yy(:, outputAxis), omega);
             Gi(outputAxis, inputAxis, k) = Y / U;
