@@ -136,40 +136,45 @@ def state_matrix(params: MotorParams, omega_r: float, omega_k: float) -> tuple[n
     return a, b, c_s
 
 
-def observer_gain_by_pole_placement(
+def observer_h_gain_by_pole_placement(
     a: np.ndarray, c: np.ndarray, desired_poles: Iterable[complex]
 ) -> np.ndarray:
-    """Place the two complex observer poles of A - l*C.
+    """Place the observer poles of the equivalent real 4-state H observer.
 
-    The equivalent real dq observer has the placed poles and their conjugates.
-    For a 2-state complex SISO observer, trace and determinant matching give a
-    linear equation in l:
+    The public design notation is the real observer gain H in
 
-        C*l = trace(A) - trace_desired
-        C*adj(A)*l = det(A) - det_desired
+        xhat_dot = A*xhat + B*u + H*(y - C*xhat).
+
+    This routine solves the equivalent two-state space-vector equation for the
+    structured gain h = [h_s, h_r]^T. The corresponding real 4x2 gain H is
+    obtained by real_h_matrix_from_space_vector_gain(h). Trace and determinant
+    matching give a linear equation in h:
+
+        C*h = trace(A) - trace_desired
+        C*adj(A)*h = det(A) - det_desired
     """
     p = np.array(list(desired_poles), dtype=complex)
     if p.shape != (2,):
-        raise ValueError("exactly two complex poles are required")
+        raise ValueError("exactly two space-vector poles are required")
 
     desired_trace = p[0] + p[1]
     desired_det = p[0] * p[1]
     adj = np.array([[a[1, 1], -a[0, 1]], [-a[1, 0], a[0, 0]]], dtype=complex)
     lhs = np.vstack([c, c @ adj])
     rhs = np.array([np.trace(a) - desired_trace, np.linalg.det(a) - desired_det], dtype=complex)
-    gain = np.linalg.solve(lhs, rhs)
-    return gain
+    h_complex = np.linalg.solve(lhs, rhs)
+    return h_complex
 
 
-def real_observer_gain(gain_complex: np.ndarray) -> np.ndarray:
-    """Return the 4x2 real observer gain equivalent to the complex gain."""
-    l_s, l_r = gain_complex
+def real_h_matrix_from_space_vector_gain(h_complex: np.ndarray) -> np.ndarray:
+    """Return the real 4x2 observer gain H from the space-vector gain h."""
+    h_s, h_r = h_complex
     return np.array(
         [
-            [l_s.real, -l_s.imag],
-            [l_s.imag, l_s.real],
-            [l_r.real, -l_r.imag],
-            [l_r.imag, l_r.real],
+            [h_s.real, -h_s.imag],
+            [h_s.imag, h_s.real],
+            [h_r.real, -h_r.imag],
+            [h_r.imag, h_r.real],
         ],
         dtype=float,
     )
@@ -249,8 +254,8 @@ def simulate_case(
     a_true, b_true, _ = state_matrix(true_params, omega_r, omega_k)
     a_obs, b_obs, c_obs = state_matrix(obs_params, omega_r, omega_k)
     poles = desired_observer_poles()
-    gain = observer_gain_by_pole_placement(a_obs, c_obs, poles)
-    placed_poles = np.linalg.eigvals(a_obs - np.outer(gain, c_obs))
+    h_complex = observer_h_gain_by_pole_placement(a_obs, c_obs, poles)
+    placed_poles = np.linalg.eigvals(a_obs - np.outer(h_complex, c_obs))
 
     n = int(round(t_end / dt)) + 1
     t = np.linspace(0.0, t_end, n)
@@ -299,7 +304,7 @@ def simulate_case(
         x_true = x_true + dt * dx_true
 
         innovation = i_meas - (c_obs @ x_hat)
-        dx_hat = a_obs @ x_hat + b_obs * v_meas + gain * innovation
+        dx_hat = a_obs @ x_hat + b_obs * v_meas + h_complex * innovation
         x_hat = x_hat + dt * dx_hat
 
         if not np.all(np.isfinite(x_hat)) or np.max(np.abs(x_hat)) > 10.0:
@@ -426,9 +431,9 @@ def plot_pole_map(params: MotorParams, ops: list[OperatingPoint]) -> Path:
     for op in ops:
         ss = steady_operating_point(params, op)
         a, _, c = state_matrix(params, float(ss["omega_r"]), float(ss["omega_k"]))
-        g = observer_gain_by_pole_placement(a, c, desired_observer_poles())
+        h_complex = observer_h_gain_by_pole_placement(a, c, desired_observer_poles())
         natural = np.linalg.eigvals(a)
-        placed = np.linalg.eigvals(a - np.outer(g, c))
+        placed = np.linalg.eigvals(a - np.outer(h_complex, c))
         ax.plot(natural.real, natural.imag, "x", ms=8, label=f"{op.name} natural")
         ax.plot(placed.real, placed.imag, "o", ms=5, label=f"{op.name} observer")
     ax.axvline(0.0, color="k", lw=0.8)
