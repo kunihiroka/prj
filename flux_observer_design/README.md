@@ -403,9 +403,129 @@ $$
 
 なお、速度が急変する一般の線形時変系に対する大域安定性は、共通Lyapunov関数またはゲインスケジューリング速度の制限を別途確認する必要がある。本評価は指定条件に合わせ、速度一定の凍結動作点で実施した。
 
-## 5. 誤差無し/有の評価結果
+## 5. C言語実装
 
-### 5.1 評価方法
+C言語実装は以下に追加した。
+
+| ファイル | 内容 |
+|---|---|
+| [c/flux_observer.h](c/flux_observer.h) | 公開API、入出力構造体、オブザーバ状態構造体 |
+| [c/flux_observer.c](c/flux_observer.c) | 回転dq座標フルオーダ磁束オブザーバ本体 |
+
+実装は `float` を使用し、動的メモリ確保は行わない。モータ定数および制御周期は、プラットフォーム側APIから取得する前提である。オブザーバは各 `FluxObserver_Step()` 呼び出しでAPIを呼び、最新の
+
+$$
+R_s,
+R_r,
+L_{ls},
+L_{lr},
+M,
+p,
+T_s
+$$
+
+を取得する。
+
+### 5.1 APIの構成
+
+プラットフォーム側は、次のコールバックを用意する。
+
+```c
+static int GetMotorConfig(void *user, FluxObserverMotorConfig *config)
+{
+    (void)user;
+    config->rs_ohm = 0.00762f;
+    config->rr_ohm = 0.008041f;
+    config->lls_h = 0.0000419f;
+    config->llr_h = 0.0000419f;
+    config->lm_h = 0.0001608f;
+    config->pole_pairs = 4u;
+    config->control_period_s = 100.0e-6f;
+    return 0;
+}
+```
+
+初期化は以下で行う。
+
+```c
+FluxObserver observer;
+FluxObserverApi api;
+
+api.user = NULL;
+api.get_motor_config = GetMotorConfig;
+FluxObserver_Init(&observer, api);
+FluxObserver_SetPolePlacement(&observer, 2200.0f, 1.55f);
+FluxObserver_ResetFlux(&observer, 0.0f, 0.0f, 0.0f, 0.0f);
+```
+
+制御周期ごとの呼び出しは以下である。
+
+```c
+FluxObserverInput input;
+FluxObserverOutput output;
+FluxObserverStatus status;
+
+input.vsd_v = vd;
+input.vsq_v = vq;
+input.isd_a = id_meas;
+input.isq_a = iq_meas;
+input.omega_m_rad_s = omega_m;
+input.omega_slip_rad_s = omega_slip;
+
+status = FluxObserver_Step(&observer, &input, &output);
+if (status != FLUX_OBSERVER_OK) {
+    /* handle API, parameter, or singularity error */
+}
+```
+
+ここで、`omega_m_rad_s` は機械角速度、`omega_slip_rad_s` は滑り角周波数である。C実装内部ではAPIから取得した極対数 `pole_pairs` を使い、
+
+$$
+\omega_r=p\omega_m
+$$
+
+$$
+\omega_k=\omega_r+\omega_{\mathrm{slip}}
+$$
+
+を計算する。
+
+### 5.2 C実装の出力
+
+`FluxObserverOutput` には以下を出力する。
+
+| 出力 | 内容 |
+|---|---|
+| `psi_sd_wb`, `psi_sq_wb` | 推定一次磁束 |
+| `psi_rd_wb`, `psi_rq_wb` | 推定二次磁束 |
+| `isd_hat_a`, `isq_hat_a` | 推定一次電流 |
+| `ird_hat_a`, `irq_hat_a` | 推定二次電流 |
+| `omega_r_rad_s`, `omega_k_rad_s` | API定数と入力から計算した電気角速度 |
+| `h[4][2]` | 実数4状態のオブザーバゲイン行列 \(H\) |
+
+C実装は空間ベクトルの補助量 \(h\) を内部計算に使うが、公開出力は実数4状態の \(H\) である。`h[4][2]` の並びは
+
+$$
+H=
+\begin{bmatrix}
+H_{00} & H_{01}\\
+H_{10} & H_{11}\\
+H_{20} & H_{21}\\
+H_{30} & H_{31}
+\end{bmatrix}
+$$
+
+であり、行は \(\psi_{sd},\psi_{sq},\psi_{rd},\psi_{rq}\)、列は \(i_{sd}\) 誤差、\(i_{sq}\) 誤差に対応する。
+
+C実装のコンパイル確認は以下で行った。
+
+```powershell
+gcc -std=c99 -Wall -Wextra -pedantic -c .\flux_observer_design\c\flux_observer.c
+```
+
+## 6. 誤差無し/有の評価結果
+
+### 6.1 評価方法
 
 評価スクリプトは以下で実行できる。
 
@@ -450,7 +570,7 @@ $$
 | 電流オフセット | \(+1\ \mathrm{A}\) on d軸, \(-1\ \mathrm{A}\) on q軸 |
 | 電流ノイズ | \(1\ \mathrm{A_{rms}}\) on d/q軸 |
 
-### 5.2 無誤差時の収束
+### 6.2 無誤差時の収束
 
 無誤差では、3動作点すべてで一次磁束・二次磁束、および一次電流・二次電流の推定値が真値へ収束した。
 
@@ -473,7 +593,7 @@ $$
 
 ![nominal convergence](figures/nominal_convergence.png)
 
-### 5.3 定数誤差の評価
+### 6.3 定数誤差の評価
 
 全ての定数誤差ケースで発散は発生しなかった。5000 r/min, -220 Nm条件で、二次磁束推定誤差が最大となった各定数のケースは以下である。
 
@@ -489,7 +609,7 @@ $$
 
 ![parameter error sweep](figures/parameter_error_sweep.png)
 
-### 5.4 電圧誤差・電流誤差の評価
+### 6.4 電圧誤差・電流誤差の評価
 
 5000 r/min, -220 Nm条件の結果を以下に示す。全ケースで発散は発生しなかった。
 
@@ -508,7 +628,7 @@ $$
 
 ![sensor error summary](figures/sensor_error_summary.png)
 
-### 5.5 結論
+### 6.5 結論
 
 本設計では、回転dq座標の一次・二次磁束を状態とし、一次電流誤差で補正するフルオーダ磁束オブザーバを構成した。極配置法により、各動作点の凍結モデルでオブザーバ誤差極を \(-2200\) および \(-3410\ \mathrm{rad/s}\) に配置した。
 
