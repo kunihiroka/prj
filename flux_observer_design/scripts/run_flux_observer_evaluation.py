@@ -512,41 +512,50 @@ def plot_sensor_error_summary(results: list[SimResult]) -> Path:
     return path
 
 
-def plot_nominal_waveform(results: list[SimResult]) -> Path:
+def plot_nominal_waveforms(results: list[SimResult]) -> list[Path]:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    r = [item for item in results if item.op.name == "5000rpm_-220Nm" and item.case.name == "nominal"][0]
-    t_ms = r.t * 1000.0
-    fig, axes = plt.subplots(2, 2, figsize=(12, 7), sharex=True)
-    axes[0, 0].plot(t_ms, r.true_flux[:, 0].real, label="psi_sd true")
-    axes[0, 0].plot(t_ms, r.est_flux[:, 0].real, "--", label="psi_sd obs")
-    axes[0, 0].plot(t_ms, r.true_flux[:, 0].imag, label="psi_sq true")
-    axes[0, 0].plot(t_ms, r.est_flux[:, 0].imag, "--", label="psi_sq obs")
-    axes[0, 1].plot(t_ms, r.true_flux[:, 1].real, label="psi_rd true")
-    axes[0, 1].plot(t_ms, r.est_flux[:, 1].real, "--", label="psi_rd obs")
-    axes[0, 1].plot(t_ms, r.true_flux[:, 1].imag, label="psi_rq true")
-    axes[0, 1].plot(t_ms, r.est_flux[:, 1].imag, "--", label="psi_rq obs")
-    axes[1, 0].plot(t_ms, r.true_current[:, 0].real, label="isd true")
-    axes[1, 0].plot(t_ms, r.est_current[:, 0].real, "--", label="isd obs")
-    axes[1, 0].plot(t_ms, r.true_current[:, 0].imag, label="isq true")
-    axes[1, 0].plot(t_ms, r.est_current[:, 0].imag, "--", label="isq obs")
-    axes[1, 1].plot(t_ms, r.true_current[:, 1].real, label="ird true")
-    axes[1, 1].plot(t_ms, r.est_current[:, 1].real, "--", label="ird obs")
-    axes[1, 1].plot(t_ms, r.true_current[:, 1].imag, label="irq true")
-    axes[1, 1].plot(t_ms, r.est_current[:, 1].imag, "--", label="irq obs")
-    titles = ["primary flux", "secondary flux", "primary current", "secondary current"]
-    for ax, title in zip(axes.ravel(), titles):
-        ax.set_title(title)
-        ax.grid(True, alpha=0.35)
-        ax.legend(fontsize=8, ncols=2)
-    axes[1, 0].set_xlabel("time [ms]")
-    axes[1, 1].set_xlabel("time [ms]")
-    fig.suptitle("Nominal waveform convergence at 5000 r/min, -220 Nm")
-    fig.tight_layout(rect=[0, 0.02, 1, 0.95])
-    path = OUT_DIR / "nominal_waveform_5000rpm_regen.png"
-    fig.savefig(path, dpi=180)
-    plt.close(fig)
-    return path
+    nominal = [r for r in results if r.case.name == "nominal"]
+    name_map = {
+        "5000rpm_+220Nm": "5000rpm_motoring",
+        "5000rpm_-220Nm": "5000rpm_regen",
+        "1000rpm_-220Nm": "1000rpm_regen",
+    }
+    paths: list[Path] = []
 
+    for r in nominal:
+        t_ms = r.t * 1000.0
+        fig, axes = plt.subplots(2, 2, figsize=(12, 7), sharex=True)
+        axes[0, 0].plot(t_ms, r.true_flux[:, 0].real, label="psi_sd true")
+        axes[0, 0].plot(t_ms, r.est_flux[:, 0].real, "--", label="psi_sd obs")
+        axes[0, 0].plot(t_ms, r.true_flux[:, 0].imag, label="psi_sq true")
+        axes[0, 0].plot(t_ms, r.est_flux[:, 0].imag, "--", label="psi_sq obs")
+        axes[0, 1].plot(t_ms, r.true_flux[:, 1].real, label="psi_rd true")
+        axes[0, 1].plot(t_ms, r.est_flux[:, 1].real, "--", label="psi_rd obs")
+        axes[0, 1].plot(t_ms, r.true_flux[:, 1].imag, label="psi_rq true")
+        axes[0, 1].plot(t_ms, r.est_flux[:, 1].imag, "--", label="psi_rq obs")
+        axes[1, 0].plot(t_ms, r.true_current[:, 0].real, label="isd true")
+        axes[1, 0].plot(t_ms, r.est_current[:, 0].real, "--", label="isd obs")
+        axes[1, 0].plot(t_ms, r.true_current[:, 0].imag, label="isq true")
+        axes[1, 0].plot(t_ms, r.est_current[:, 0].imag, "--", label="isq obs")
+        axes[1, 1].plot(t_ms, r.true_current[:, 1].real, label="ird true")
+        axes[1, 1].plot(t_ms, r.est_current[:, 1].real, "--", label="ird obs")
+        axes[1, 1].plot(t_ms, r.true_current[:, 1].imag, label="irq true")
+        axes[1, 1].plot(t_ms, r.est_current[:, 1].imag, "--", label="irq obs")
+        titles = ["primary flux", "secondary flux", "primary current", "secondary current"]
+        for ax, title in zip(axes.ravel(), titles):
+            ax.set_title(title)
+            ax.grid(True, alpha=0.35)
+            ax.legend(fontsize=8, ncols=2)
+        axes[1, 0].set_xlabel("time [ms]")
+        axes[1, 1].set_xlabel("time [ms]")
+        fig.suptitle(f"Nominal waveform convergence at {r.op.speed_rpm:.0f} r/min, {r.op.torque_nm:+.0f} Nm")
+        fig.tight_layout(rect=[0, 0.02, 1, 0.95])
+        path = OUT_DIR / f"nominal_waveform_{name_map.get(r.op.name, r.op.name)}.png"
+        fig.savefig(path, dpi=180)
+        plt.close(fig)
+        paths.append(path)
+
+    return paths
 
 def print_key_tables(results: list[SimResult]) -> None:
     print("\nNominal cases")
@@ -587,13 +596,14 @@ def main() -> None:
             results.append(simulate_case(params, op, case, seed=1000 + idx))
 
     summary_path = save_summary_csv(results)
-    figs = [
-        plot_nominal_waveform(results),
+    figs = []
+    figs.extend(plot_nominal_waveforms(results))
+    figs.extend([
         plot_nominal_convergence(results),
         plot_pole_map(params, ops),
         plot_parameter_error_sweep(results),
         plot_sensor_error_summary(results),
-    ]
+    ])
     print_key_tables(results)
     print(f"\nSaved summary: {summary_path}")
     for fig in figs:

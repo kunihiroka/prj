@@ -359,7 +359,9 @@ python .\flux_observer_design\scripts\run_flux_observer_evaluation.py
 | ファイル | 内容 |
 |---|---|
 | [data/evaluation_summary.csv](data/evaluation_summary.csv) | 全評価ケースの数値結果 |
+| [figures/nominal_waveform_5000rpm_motoring.png](figures/nominal_waveform_5000rpm_motoring.png) | 5000 r/min力行の無誤差波形 |
 | [figures/nominal_waveform_5000rpm_regen.png](figures/nominal_waveform_5000rpm_regen.png) | 5000 r/min回生の無誤差波形 |
+| [figures/nominal_waveform_1000rpm_regen.png](figures/nominal_waveform_1000rpm_regen.png) | 1000 r/min回生の無誤差波形 |
 | [figures/nominal_convergence.png](figures/nominal_convergence.png) | 3動作点の収束誤差 |
 | [figures/parameter_error_sweep.png](figures/parameter_error_sweep.png) | 定数誤差感度 |
 | [figures/sensor_error_summary.png](figures/sensor_error_summary.png) | 電圧・電流誤差感度 |
@@ -399,7 +401,16 @@ $$
 | 5000 r/min, -220 Nm | \(5.95\times10^{-13}\%\) | \(8.04\times10^{-13}\ \mathrm{A}\) | \(2.81\ \mathrm{ms}\) | \(3.70\ \mathrm{ms}\) |
 | 1000 r/min, -220 Nm | \(2.53\times10^{-12}\%\) | \(4.58\times10^{-13}\ \mathrm{A}\) | \(3.53\ \mathrm{ms}\) | \(3.69\ \mathrm{ms}\) |
 
-![nominal waveform](figures/nominal_waveform_5000rpm_regen.png)
+以下に、各動作点での一次磁束、二次磁束、一次電流、二次電流の真値とオブザーバ推定値を示す。破線が推定値であり、初期推定誤差を付与した後、各成分が真値へ収束している。
+
+![5000 r/min motoring nominal waveform](figures/nominal_waveform_5000rpm_motoring.png)
+
+![5000 r/min regeneration nominal waveform](figures/nominal_waveform_5000rpm_regen.png)
+
+![1000 r/min regeneration nominal waveform](figures/nominal_waveform_1000rpm_regen.png)
+
+収束誤差を対数軸で表示した結果を以下に示す。
+
 
 ![nominal convergence](figures/nominal_convergence.png)
 
