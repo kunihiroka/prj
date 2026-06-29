@@ -1,23 +1,17 @@
 """Rotating-dq full-order flux observer design and evaluation.
 
-The observer state is
+The observer state is the real four-state vector
 
-    x = [psi_s, psi_r]^T
+    x = [psi_sd, psi_sq, psi_rd, psi_rq]^T.
 
-where psi_s and psi_r are complex dq vectors.  This is equivalent to the
-four-real-state vector
-
-    [psi_sd, psi_sq, psi_rd, psi_rq]^T.
-
-Only stator current is used for correction.  Stator and rotor currents are
+Only stator current is used for correction. Stator and rotor currents are
 calculated from the estimated stator and rotor fluxes.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import csv
 import math
@@ -110,82 +104,125 @@ def apply_param_scale(params: MotorParams, scale: dict[str, float] | None) -> Mo
     return MotorParams(**values)
 
 
-def current_rows(params: MotorParams) -> tuple[np.ndarray, np.ndarray]:
-    """Return complex rows that calculate stator and rotor current from flux."""
+def dq_j_matrix() -> np.ndarray:
+    return np.array([[0.0, -1.0], [1.0, 0.0]], dtype=float)
+
+
+def current_matrices(params: MotorParams) -> tuple[np.ndarray, np.ndarray]:
+    """Return real matrices that calculate primary and secondary current from flux."""
     d = params.det_l
-    c_s = np.array([params.lr / d, -params.lm / d], dtype=complex)
-    c_r = np.array([-params.lm / d, params.ls / d], dtype=complex)
+    cs0 = params.lr / d
+    cs1 = -params.lm / d
+    cr0 = -params.lm / d
+    cr1 = params.ls / d
+    c_s = np.array([[cs0, 0.0, cs1, 0.0], [0.0, cs0, 0.0, cs1]], dtype=float)
+    c_r = np.array([[cr0, 0.0, cr1, 0.0], [0.0, cr0, 0.0, cr1]], dtype=float)
     return c_s, c_r
 
 
 def state_matrix(params: MotorParams, omega_r: float, omega_k: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return A, B, C_s for the complex rotating-dq model.
+    """Return A, B, C_s for the real rotating-dq model.
 
     Flux equations:
 
-        d psi_s / dt = v_s - Rs i_s - j omega_k psi_s
-        d psi_r / dt =     - Rr i_r - j(omega_k - omega_r) psi_r
+        d psi_s / dt = v_s - Rs i_s - omega_k J psi_s
+        d psi_r / dt =     - Rr i_r - (omega_k - omega_r) J psi_r
+
+    where J = [[0, -1], [1, 0]].
     """
-    c_s, c_r = current_rows(params)
-    a = np.zeros((2, 2), dtype=complex)
-    a[0, :] = -params.rs * c_s
-    a[0, 0] += -1j * omega_k
-    a[1, :] = -params.rr * c_r
-    a[1, 1] += -1j * (omega_k - omega_r)
-    b = np.array([1.0 + 0j, 0.0 + 0j], dtype=complex)
+    c_s, c_r = current_matrices(params)
+    j = dq_j_matrix()
+    a = np.zeros((4, 4), dtype=float)
+    a[0:2, :] = -params.rs * c_s
+    a[0:2, 0:2] += -omega_k * j
+    a[2:4, :] = -params.rr * c_r
+    a[2:4, 2:4] += -(omega_k - omega_r) * j
+    b = np.zeros((4, 2), dtype=float)
+    b[0:2, 0:2] = np.eye(2)
     return a, b, c_s
 
 
-def observer_h_gain_by_pole_placement(
-    a: np.ndarray, c: np.ndarray, desired_poles: Iterable[complex]
+def observer_H_gain_by_pole_placement(
+    params: MotorParams,
+    omega_r: float,
+    omega_k: float,
+    observer_bandwidth: float = 2200.0,
+    pole_ratio: float = 1.55,
 ) -> np.ndarray:
-    """Place the observer poles of the equivalent real 4-state H observer.
+    """Return the real 4x2 observer gain matrix H by online pole placement.
 
-    The public design notation is the real observer gain H in
+    The gain is constrained to the dq-rotationally symmetric real form
 
-        xhat_dot = A*xhat + B*u + H*(y - C*xhat).
+        H = [[G0, -G1], [G1, G0], [G2, -G3], [G3, G2]].
 
-    This routine solves the equivalent two-state space-vector equation for the
-    structured gain h = [h_s, h_r]^T. The corresponding real 4x2 gain H is
-    obtained by real_h_matrix_from_space_vector_gain(h). Trace and determinant
-    matching give a linear equation in h:
-
-        C*h = trace(A) - trace_desired
-        C*adj(A)*h = det(A) - det_desired
+    This is a real-matrix constraint, not a separate gain notation. The four
+    unknowns G0..G3 are obtained from trace and determinant matching of the
+    equivalent dq-symmetric two-axis plant, written as four real equations.
     """
-    p = np.array(list(desired_poles), dtype=complex)
-    if p.shape != (2,):
-        raise ValueError("exactly two space-vector poles are required")
+    d = params.det_l
+    cs0 = params.lr / d
+    cs1 = -params.lm / d
+    cr0 = -params.lm / d
+    cr1 = params.ls / d
 
-    desired_trace = p[0] + p[1]
-    desired_det = p[0] * p[1]
-    adj = np.array([[a[1, 1], -a[0, 1]], [-a[1, 0], a[0, 0]]], dtype=complex)
-    lhs = np.vstack([c, c @ adj])
-    rhs = np.array([np.trace(a) - desired_trace, np.linalg.det(a) - desired_det], dtype=complex)
-    h_complex = np.linalg.solve(lhs, rhs)
-    return h_complex
+    a00_re = -params.rs * cs0
+    a00_im = -omega_k
+    a01_re = -params.rs * cs1
+    a01_im = 0.0
+    a10_re = -params.rr * cr0
+    a10_im = 0.0
+    a11_re = -params.rr * cr1
+    a11_im = -(omega_k - omega_r)
 
+    adj00_re, adj00_im = a11_re, a11_im
+    adj01_re, adj01_im = -a01_re, -a01_im
+    adj10_re, adj10_im = -a10_re, -a10_im
+    adj11_re, adj11_im = a00_re, a00_im
 
-def real_h_matrix_from_space_vector_gain(h_complex: np.ndarray) -> np.ndarray:
-    """Return the real 4x2 observer gain H from the space-vector gain h."""
-    h_s, h_r = h_complex
-    return np.array(
+    row20_re = cs0 * adj00_re + cs1 * adj10_re
+    row20_im = cs0 * adj00_im + cs1 * adj10_im
+    row21_re = cs0 * adj01_re + cs1 * adj11_re
+    row21_im = cs0 * adj01_im + cs1 * adj11_im
+
+    desired_trace = -(1.0 + pole_ratio) * observer_bandwidth
+    desired_det = pole_ratio * observer_bandwidth * observer_bandwidth
+
+    rhs0_re = (a00_re + a11_re) - desired_trace
+    rhs0_im = a00_im + a11_im
+    det_re = (a00_re * a11_re - a00_im * a11_im) - (a01_re * a10_re - a01_im * a10_im)
+    det_im = (a00_re * a11_im + a00_im * a11_re) - (a01_re * a10_im + a01_im * a10_re)
+    rhs1_re = det_re - desired_det
+    rhs1_im = det_im
+
+    lhs = np.array(
         [
-            [h_s.real, -h_s.imag],
-            [h_s.imag, h_s.real],
-            [h_r.real, -h_r.imag],
-            [h_r.imag, h_r.real],
+            [cs0, 0.0, cs1, 0.0],
+            [0.0, cs0, 0.0, cs1],
+            [row20_re, -row20_im, row21_re, -row21_im],
+            [row20_im, row20_re, row21_im, row21_re],
         ],
+        dtype=float,
+    )
+    rhs = np.array([rhs0_re, rhs0_im, rhs1_re, rhs1_im], dtype=float)
+    g0, g1, g2, g3 = np.linalg.solve(lhs, rhs)
+    return np.array(
+        [[g0, -g1], [g1, g0], [g2, -g3], [g3, g2]],
         dtype=float,
     )
 
 
-def desired_observer_poles(observer_bandwidth: float = 2200.0) -> np.ndarray:
-    """Observer pole pair in the complex two-state model."""
-    return np.array([-observer_bandwidth, -1.55 * observer_bandwidth], dtype=complex)
+def desired_observer_poles(observer_bandwidth: float = 2200.0, pole_ratio: float = 1.55) -> np.ndarray:
+    return np.array([-observer_bandwidth, -pole_ratio * observer_bandwidth], dtype=float)
 
 
-def steady_operating_point(params: MotorParams, op: OperatingPoint) -> dict[str, complex | float]:
+def dq_scale_rotate(v: np.ndarray, scale_d: float, scale_q: float) -> np.ndarray:
+    return np.array(
+        [scale_d * v[0] - scale_q * v[1], scale_q * v[0] + scale_d * v[1]],
+        dtype=float,
+    )
+
+
+def steady_operating_point(params: MotorParams, op: OperatingPoint) -> dict[str, np.ndarray | float]:
     omega_m = op.speed_rpm * 2.0 * math.pi / 60.0
     omega_r = params.pole_pairs * omega_m
     id_s = op.id_ref
@@ -194,19 +231,21 @@ def steady_operating_point(params: MotorParams, op: OperatingPoint) -> dict[str,
     slip = params.rr / params.lr * iq_s / id_s
     omega_k = omega_r + slip
 
-    psi_r = params.lm * id_s + 0j
-    psi_s = params.ls * id_s + 1j * params.sigma_ls * iq_s
-    i_s = id_s + 1j * iq_s
-    _, c_r = current_rows(params)
-    i_r = c_r @ np.array([psi_s, psi_r], dtype=complex)
-    v_s = params.rs * i_s + 1j * omega_k * psi_s
-    torque = 1.5 * params.pole_pairs * (psi_s.real * i_s.imag - psi_s.imag * i_s.real)
+    psi_r = np.array([params.lm * id_s, 0.0], dtype=float)
+    psi_s = np.array([params.ls * id_s, params.sigma_ls * iq_s], dtype=float)
+    x = np.array([psi_s[0], psi_s[1], psi_r[0], psi_r[1]], dtype=float)
+    i_s = np.array([id_s, iq_s], dtype=float)
+    _, c_r = current_matrices(params)
+    i_r = c_r @ x
+    v_s = params.rs * i_s + omega_k * (dq_j_matrix() @ psi_s)
+    torque = 1.5 * params.pole_pairs * (psi_s[0] * i_s[1] - psi_s[1] * i_s[0])
 
     return {
         "omega_m": omega_m,
         "omega_r": omega_r,
         "omega_k": omega_k,
         "slip": slip,
+        "x": x,
         "psi_s": psi_s,
         "psi_r": psi_r,
         "i_s": i_s,
@@ -216,13 +255,16 @@ def steady_operating_point(params: MotorParams, op: OperatingPoint) -> dict[str,
     }
 
 
-def all_currents(params: MotorParams, x: np.ndarray) -> tuple[complex, complex]:
-    c_s, c_r = current_rows(params)
+def all_currents(params: MotorParams, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    c_s, c_r = current_matrices(params)
     return c_s @ x, c_r @ x
 
 
-def rms_complex(x: np.ndarray) -> float:
-    return float(np.sqrt(np.mean(np.abs(x) ** 2)))
+def rms_vector(x: np.ndarray) -> float:
+    arr = np.asarray(x, dtype=float)
+    if arr.ndim == 1:
+        return float(np.sqrt(np.mean(arr * arr)))
+    return float(np.sqrt(np.mean(np.sum(arr * arr, axis=1))))
 
 
 def convergence_time(t: np.ndarray, err: np.ndarray, threshold: float) -> float:
@@ -249,35 +291,36 @@ def simulate_case(
     ss = steady_operating_point(true_params, op)
     omega_r = float(ss["omega_r"])
     omega_k = float(ss["omega_k"])
-    v_true = complex(ss["v_s"])
+    v_true = np.array(ss["v_s"], dtype=float)
 
     a_true, b_true, _ = state_matrix(true_params, omega_r, omega_k)
     a_obs, b_obs, c_obs = state_matrix(obs_params, omega_r, omega_k)
-    poles = desired_observer_poles()
-    h_complex = observer_h_gain_by_pole_placement(a_obs, c_obs, poles)
-    placed_poles = np.linalg.eigvals(a_obs - np.outer(h_complex, c_obs))
+    H = observer_H_gain_by_pole_placement(obs_params, omega_r, omega_k)
+    placed_poles = np.linalg.eigvals(a_obs - H @ c_obs)
 
     n = int(round(t_end / dt)) + 1
     t = np.linspace(0.0, t_end, n)
-    x_true = np.array([complex(ss["psi_s"]), complex(ss["psi_r"])], dtype=complex)
+    x_true = np.array(ss["x"], dtype=float)
+    psi_s0 = np.array(ss["psi_s"], dtype=float)
+    psi_r0 = np.array(ss["psi_r"], dtype=float)
     x_hat = np.array(
         [
-            complex(ss["psi_s"]) * (0.25 + 0.20j),
-            complex(ss["psi_r"]) * (1.45 - 0.25j),
+            *dq_scale_rotate(psi_s0, 0.25, 0.20),
+            *dq_scale_rotate(psi_r0, 1.45, -0.25),
         ],
-        dtype=complex,
+        dtype=float,
     )
 
-    true_flux = np.zeros((n, 2), dtype=complex)
-    est_flux = np.zeros((n, 2), dtype=complex)
-    true_current = np.zeros((n, 2), dtype=complex)
-    est_current = np.zeros((n, 2), dtype=complex)
+    true_flux = np.zeros((n, 4), dtype=float)
+    est_flux = np.zeros((n, 4), dtype=float)
+    true_current = np.zeros((n, 4), dtype=float)
+    est_current = np.zeros((n, 4), dtype=float)
 
     rng = np.random.default_rng(seed)
     stable = True
 
-    v_offset = case.voltage_offset_d + 1j * case.voltage_offset_q
-    i_offset = case.current_offset_d + 1j * case.current_offset_q
+    v_offset = np.array([case.voltage_offset_d, case.voltage_offset_q], dtype=float)
+    i_offset = np.array([case.current_offset_d, case.current_offset_q], dtype=float)
 
     for k in range(n):
         is_true, ir_true = all_currents(true_params, x_true)
@@ -285,26 +328,24 @@ def simulate_case(
 
         true_flux[k, :] = x_true
         est_flux[k, :] = x_hat
-        true_current[k, :] = [is_true, ir_true]
-        est_current[k, :] = [is_hat, ir_hat]
+        true_current[k, :] = [is_true[0], is_true[1], ir_true[0], ir_true[1]]
+        est_current[k, :] = [is_hat[0], is_hat[1], ir_hat[0], ir_hat[1]]
 
         if k == n - 1:
             break
 
-        noise = 0j
+        noise = np.zeros(2, dtype=float)
         if case.current_noise_rms > 0.0:
-            noise = rng.normal(0.0, case.current_noise_rms) + 1j * rng.normal(
-                0.0, case.current_noise_rms
-            )
+            noise = rng.normal(0.0, case.current_noise_rms, size=2)
         v_meas = (1.0 + case.voltage_gain) * v_true + v_offset
         i_meas = (1.0 + case.current_gain) * is_true + i_offset + noise
 
         # True plant is integrated as well, although the chosen input is a steady-state input.
-        dx_true = a_true @ x_true + b_true * v_true
+        dx_true = a_true @ x_true + b_true @ v_true
         x_true = x_true + dt * dx_true
 
         innovation = i_meas - (c_obs @ x_hat)
-        dx_hat = a_obs @ x_hat + b_obs * v_meas + h_complex * innovation
+        dx_hat = a_obs @ x_hat + b_obs @ v_meas + H @ innovation
         x_hat = x_hat + dt * dx_hat
 
         if not np.all(np.isfinite(x_hat)) or np.max(np.abs(x_hat)) > 10.0:
@@ -319,23 +360,25 @@ def simulate_case(
     start = max(0, int(0.8 * len(t)))
     flux_err = est_flux - true_flux
     curr_err = est_current - true_current
-    psi_s_mag = max(rms_complex(true_flux[start:, 0]), 1e-12)
-    psi_r_mag = max(rms_complex(true_flux[start:, 1]), 1e-12)
-    is_mag = max(rms_complex(true_current[start:, 0]), 1e-12)
-    ir_mag = max(rms_complex(true_current[start:, 1]), 1e-12)
+    psi_s_mag = max(rms_vector(true_flux[start:, 0:2]), 1e-12)
+    psi_r_mag = max(rms_vector(true_flux[start:, 2:4]), 1e-12)
+    is_mag = max(rms_vector(true_current[start:, 0:2]), 1e-12)
+    ir_mag = max(rms_vector(true_current[start:, 2:4]), 1e-12)
+    psi_r_err_norm = np.linalg.norm(flux_err[:, 2:4], axis=1)
+    is_err_norm = np.linalg.norm(curr_err[:, 0:2], axis=1)
 
     metrics = {
-        "psi_s_rms_wb": rms_complex(flux_err[start:, 0]),
-        "psi_r_rms_wb": rms_complex(flux_err[start:, 1]),
-        "is_rms_a": rms_complex(curr_err[start:, 0]),
-        "ir_rms_a": rms_complex(curr_err[start:, 1]),
-        "psi_s_rel_pct": 100.0 * rms_complex(flux_err[start:, 0]) / psi_s_mag,
-        "psi_r_rel_pct": 100.0 * rms_complex(flux_err[start:, 1]) / psi_r_mag,
-        "is_rel_pct": 100.0 * rms_complex(curr_err[start:, 0]) / is_mag,
-        "ir_rel_pct": 100.0 * rms_complex(curr_err[start:, 1]) / ir_mag,
+        "psi_s_rms_wb": rms_vector(flux_err[start:, 0:2]),
+        "psi_r_rms_wb": rms_vector(flux_err[start:, 2:4]),
+        "is_rms_a": rms_vector(curr_err[start:, 0:2]),
+        "ir_rms_a": rms_vector(curr_err[start:, 2:4]),
+        "psi_s_rel_pct": 100.0 * rms_vector(flux_err[start:, 0:2]) / psi_s_mag,
+        "psi_r_rel_pct": 100.0 * rms_vector(flux_err[start:, 2:4]) / psi_r_mag,
+        "is_rel_pct": 100.0 * rms_vector(curr_err[start:, 0:2]) / is_mag,
+        "ir_rel_pct": 100.0 * rms_vector(curr_err[start:, 2:4]) / ir_mag,
         "psi_r_conv_time_ms": 1000.0
-        * convergence_time(t, flux_err[:, 1], 0.01 * max(np.abs(true_flux[-1, 1]), 1e-12)),
-        "is_conv_time_ms": 1000.0 * convergence_time(t, curr_err[:, 0], 1.0),
+        * convergence_time(t, psi_r_err_norm, 0.01 * max(np.linalg.norm(true_flux[-1, 2:4]), 1e-12)),
+        "is_conv_time_ms": 1000.0 * convergence_time(t, is_err_norm, 1.0),
         "max_abs_flux_wb": float(np.max(np.abs(est_flux))),
     }
 
@@ -399,10 +442,10 @@ def plot_nominal_convergence(results: list[SimResult]) -> Path:
     fig, axes = plt.subplots(3, 2, figsize=(13, 9), sharex=False)
     for row, r in enumerate(nominal):
         t_ms = r.t * 1000.0
-        flux_err_s = np.abs(r.est_flux[:, 0] - r.true_flux[:, 0])
-        flux_err_r = np.abs(r.est_flux[:, 1] - r.true_flux[:, 1])
-        curr_err_s = np.abs(r.est_current[:, 0] - r.true_current[:, 0])
-        curr_err_r = np.abs(r.est_current[:, 1] - r.true_current[:, 1])
+        flux_err_s = np.linalg.norm(r.est_flux[:, 0:2] - r.true_flux[:, 0:2], axis=1)
+        flux_err_r = np.linalg.norm(r.est_flux[:, 2:4] - r.true_flux[:, 2:4], axis=1)
+        curr_err_s = np.linalg.norm(r.est_current[:, 0:2] - r.true_current[:, 0:2], axis=1)
+        curr_err_r = np.linalg.norm(r.est_current[:, 2:4] - r.true_current[:, 2:4], axis=1)
         ax = axes[row, 0]
         ax.semilogy(t_ms, flux_err_s, label="primary flux")
         ax.semilogy(t_ms, flux_err_r, label="secondary flux")
@@ -431,16 +474,16 @@ def plot_pole_map(params: MotorParams, ops: list[OperatingPoint]) -> Path:
     for op in ops:
         ss = steady_operating_point(params, op)
         a, _, c = state_matrix(params, float(ss["omega_r"]), float(ss["omega_k"]))
-        h_complex = observer_h_gain_by_pole_placement(a, c, desired_observer_poles())
+        H = observer_H_gain_by_pole_placement(params, float(ss["omega_r"]), float(ss["omega_k"]))
         natural = np.linalg.eigvals(a)
-        placed = np.linalg.eigvals(a - np.outer(h_complex, c))
+        placed = np.linalg.eigvals(a - H @ c)
         ax.plot(natural.real, natural.imag, "x", ms=8, label=f"{op.name} natural")
         ax.plot(placed.real, placed.imag, "o", ms=5, label=f"{op.name} observer")
     ax.axvline(0.0, color="k", lw=0.8)
     ax.grid(True, alpha=0.35)
     ax.set_xlabel("real part [1/s]")
     ax.set_ylabel("imaginary part [rad/s]")
-    ax.set_title("Frozen-time complex observer pole placement")
+    ax.set_title("Frozen-time real 4-state observer pole placement")
     ax.legend(fontsize=7, ncols=2)
     fig.tight_layout()
     path = OUT_DIR / "observer_pole_map.png"
@@ -530,22 +573,22 @@ def plot_nominal_waveforms(results: list[SimResult]) -> list[Path]:
     for r in nominal:
         t_ms = r.t * 1000.0
         fig, axes = plt.subplots(2, 2, figsize=(12, 7), sharex=True)
-        axes[0, 0].plot(t_ms, r.true_flux[:, 0].real, label="psi_sd true")
-        axes[0, 0].plot(t_ms, r.est_flux[:, 0].real, "--", label="psi_sd obs")
-        axes[0, 0].plot(t_ms, r.true_flux[:, 0].imag, label="psi_sq true")
-        axes[0, 0].plot(t_ms, r.est_flux[:, 0].imag, "--", label="psi_sq obs")
-        axes[0, 1].plot(t_ms, r.true_flux[:, 1].real, label="psi_rd true")
-        axes[0, 1].plot(t_ms, r.est_flux[:, 1].real, "--", label="psi_rd obs")
-        axes[0, 1].plot(t_ms, r.true_flux[:, 1].imag, label="psi_rq true")
-        axes[0, 1].plot(t_ms, r.est_flux[:, 1].imag, "--", label="psi_rq obs")
-        axes[1, 0].plot(t_ms, r.true_current[:, 0].real, label="isd true")
-        axes[1, 0].plot(t_ms, r.est_current[:, 0].real, "--", label="isd obs")
-        axes[1, 0].plot(t_ms, r.true_current[:, 0].imag, label="isq true")
-        axes[1, 0].plot(t_ms, r.est_current[:, 0].imag, "--", label="isq obs")
-        axes[1, 1].plot(t_ms, r.true_current[:, 1].real, label="ird true")
-        axes[1, 1].plot(t_ms, r.est_current[:, 1].real, "--", label="ird obs")
-        axes[1, 1].plot(t_ms, r.true_current[:, 1].imag, label="irq true")
-        axes[1, 1].plot(t_ms, r.est_current[:, 1].imag, "--", label="irq obs")
+        axes[0, 0].plot(t_ms, r.true_flux[:, 0], label="psi_sd true")
+        axes[0, 0].plot(t_ms, r.est_flux[:, 0], "--", label="psi_sd obs")
+        axes[0, 0].plot(t_ms, r.true_flux[:, 1], label="psi_sq true")
+        axes[0, 0].plot(t_ms, r.est_flux[:, 1], "--", label="psi_sq obs")
+        axes[0, 1].plot(t_ms, r.true_flux[:, 2], label="psi_rd true")
+        axes[0, 1].plot(t_ms, r.est_flux[:, 2], "--", label="psi_rd obs")
+        axes[0, 1].plot(t_ms, r.true_flux[:, 3], label="psi_rq true")
+        axes[0, 1].plot(t_ms, r.est_flux[:, 3], "--", label="psi_rq obs")
+        axes[1, 0].plot(t_ms, r.true_current[:, 0], label="isd true")
+        axes[1, 0].plot(t_ms, r.est_current[:, 0], "--", label="isd obs")
+        axes[1, 0].plot(t_ms, r.true_current[:, 1], label="isq true")
+        axes[1, 0].plot(t_ms, r.est_current[:, 1], "--", label="isq obs")
+        axes[1, 1].plot(t_ms, r.true_current[:, 2], label="ird true")
+        axes[1, 1].plot(t_ms, r.est_current[:, 2], "--", label="ird obs")
+        axes[1, 1].plot(t_ms, r.true_current[:, 3], label="irq true")
+        axes[1, 1].plot(t_ms, r.est_current[:, 3], "--", label="irq obs")
         titles = ["primary flux", "secondary flux", "primary current", "secondary current"]
         for ax, title in zip(axes.ravel(), titles):
             ax.set_title(title)
@@ -561,6 +604,7 @@ def plot_nominal_waveforms(results: list[SimResult]) -> list[Path]:
         paths.append(path)
 
     return paths
+
 
 def print_key_tables(results: list[SimResult]) -> None:
     print("\nNominal cases")
@@ -603,12 +647,14 @@ def main() -> None:
     summary_path = save_summary_csv(results)
     figs = []
     figs.extend(plot_nominal_waveforms(results))
-    figs.extend([
-        plot_nominal_convergence(results),
-        plot_pole_map(params, ops),
-        plot_parameter_error_sweep(results),
-        plot_sensor_error_summary(results),
-    ])
+    figs.extend(
+        [
+            plot_nominal_convergence(results),
+            plot_pole_map(params, ops),
+            plot_parameter_error_sweep(results),
+            plot_sensor_error_summary(results),
+        ]
+    )
     print_key_tables(results)
     print(f"\nSaved summary: {summary_path}")
     for fig in figs:

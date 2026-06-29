@@ -1,6 +1,6 @@
 # 回転dq座標フルオーダ磁束オブザーバ設計・評価
 
-本資料は、指定された誘導機定数を用いて、回転dq座標上のフルオーダ磁束オブザーバを設計し、推定一次磁束・二次磁束、および出力一次電流・二次電流が真値へ収束することを確認した結果をまとめたものである。オブザーバゲインは極配置法でオンライン計算する。
+本資料は、指定された誘導機定数を用いて、回転dq座標上のフルオーダ磁束オブザーバを設計し、推定一次磁束・二次磁束、および出力一次電流・二次電流が真値へ収束することを確認した結果をまとめたものである。オブザーバゲインは実数4状態の行列 \(H\) として扱い、極配置法でオンライン計算する。
 
 使用した誘導機定数は以下である。
 
@@ -23,33 +23,25 @@ $$
 
 ## 1. 概要
 
-目的は、一次電圧、一次電流、回転速度、およびdq座標の回転角速度から、一次磁束と二次磁束を推定することである。オブザーバの状態変数は
+目的は、一次電圧、一次電流、回転速度、およびdq座標の回転角速度から、一次磁束と二次磁束を推定することである。オブザーバの状態変数は実数4状態
 
 $$
-x=
-\begin{bmatrix}
-\psi_s\\
-\psi_r
-\end{bmatrix}
-$$
-
-とする。ここで \(\psi_s=\psi_{sd}+j\psi_{sq}\)、\(\psi_r=\psi_{rd}+j\psi_{rq}\) は回転dq座標上の複素表現である。これは実数状態
-
-$$
+x_R=
 \begin{bmatrix}
 \psi_{sd} & \psi_{sq} & \psi_{rd} & \psi_{rq}
 \end{bmatrix}^T
 $$
 
-と等価である。
-
-オブザーバの測定出力は一次電流であり、
+とする。測定出力は一次電流
 
 $$
-i_s=i_{sd}+ji_{sq}
+y_R=
+\begin{bmatrix}
+i_{sd} & i_{sq}
+\end{bmatrix}^T
 $$
 
-を補正入力に使う。二次電流 \(i_r=i_{rd}+ji_{rq}\) は直接測定しないが、推定磁束からオブザーバ出力として計算する。
+であり、これを補正入力に使う。二次電流は直接測定しないが、推定磁束からオブザーバ出力として計算する。
 
 評価条件は以下とした。
 
@@ -73,7 +65,32 @@ $$
 
 ### 2.1 電流と磁束の関係
 
-d軸・q軸それぞれで、磁束と電流は
+一次磁束ベクトル、二次磁束ベクトル、一次電流ベクトル、二次電流ベクトルを
+
+$$
+\psi_s=
+\begin{bmatrix}
+\psi_{sd}\\
+\psi_{sq}
+\end{bmatrix},\quad
+\psi_r=
+\begin{bmatrix}
+\psi_{rd}\\
+\psi_{rq}
+\end{bmatrix},\quad
+i_s=
+\begin{bmatrix}
+i_{sd}\\
+i_{sq}
+\end{bmatrix},\quad
+i_r=
+\begin{bmatrix}
+i_{rd}\\
+i_{rq}
+\end{bmatrix}
+$$
+
+とする。d軸・q軸それぞれで、磁束と電流は
 
 $$
 \begin{bmatrix}
@@ -82,8 +99,8 @@ $$
 \end{bmatrix}
 =
 \begin{bmatrix}
-L_s & M\\
-M & L_r
+L_s I_2 & M I_2\\
+M I_2 & L_r I_2
 \end{bmatrix}
 \begin{bmatrix}
 i_s\\
@@ -105,21 +122,31 @@ $$
 
 ### 2.2 回転dq座標の状態方程式
 
-一次電圧を \(v_s=v_{sd}+jv_{sq}\)、二次電圧を短絡として \(v_r=0\) とする。回転dq座標の状態方程式は
+以下の90度回転行列を定義する。
+
+$$
+J=
+\begin{bmatrix}
+0 & -1\\
+1 & 0
+\end{bmatrix}
+$$
+
+一次電圧を \(v_s=[v_{sd}\ v_{sq}]^T\)、二次電圧を短絡として \(v_r=0\) とする。回転dq座標の状態方程式は
 
 $$
 \dot{\psi}_s
 =
 v_s
 -R_s i_s
--j\omega_k\psi_s
+-\omega_k J\psi_s
 $$
 
 $$
 \dot{\psi}_r
 =
 -R_r i_r
--j(\omega_k-\omega_r)\psi_r
+-(\omega_k-\omega_r)J\psi_r
 $$
 
 である。ここで
@@ -130,82 +157,59 @@ $$
 
 は電気角のロータ速度である。
 
-電流式を代入すると、
+電流式を代入すると、実数4状態の状態方程式
 
 $$
-\dot{x}=Ax+Bv_s
+\dot{x}_R=A_Rx_R+B_Rv_s
 $$
 
 となる。ただし、
 
 $$
-A=
+A_R=
 \begin{bmatrix}
--R_sL_r/D-j\omega_k & R_sM/D\\
-R_rM/D & -R_rL_s/D-j(\omega_k-\omega_r)
+-\frac{R_sL_r}{D}I_2-\omega_kJ & \frac{R_sM}{D}I_2\\
+\frac{R_rM}{D}I_2 & -\frac{R_rL_s}{D}I_2-(\omega_k-\omega_r)J
 \end{bmatrix}
 $$
 
 $$
-B=
+B_R=
 \begin{bmatrix}
-1\\
-0
+I_2\\
+0_{2\times2}
 \end{bmatrix}
 $$
 
 である。一次電流出力は
 
 $$
-i_s=C_sx,\qquad
-C_s=
-\begin{bmatrix}
-L_r/D & -M/D
-\end{bmatrix}
-$$
-
-である。
-
-### 2.3 オブザーバ式
-
-オブザーバは一次電流誤差で補正する。設計上の状態は実数4状態
-
-$$
-x_R=
-\begin{bmatrix}
-\psi_{sd} & \psi_{sq} & \psi_{rd} & \psi_{rq}
-\end{bmatrix}^T
-$$
-
-とし、測定出力は
-
-$$
-y_R=
-\begin{bmatrix}
-i_{sd} & i_{sq}
-\end{bmatrix}^T
-$$
-
-とする。2.2節の空間ベクトル状態方程式を実部・虚部に分解すると、実数状態方程式
-
-$$
-\dot{x}_R=A_Rx_R+B_Rv_R
-$$
-
-$$
 y_R=C_Rx_R
 $$
 
-が得られる。ここで
-
 $$
-v_R=
+C_R=
 \begin{bmatrix}
-v_{sd} & v_{sq}
-\end{bmatrix}^T
+\frac{L_r}{D}I_2 & -\frac{M}{D}I_2
+\end{bmatrix}
 $$
 
-である。
+である。二次電流出力は
+
+$$
+i_r=C_{r,R}x_R
+$$
+
+$$
+C_{r,R}=
+\begin{bmatrix}
+-\frac{M}{D}I_2 & \frac{L_s}{D}I_2
+\end{bmatrix}
+$$
+
+で計算する。
+
+### 2.3 オブザーバ式
 
 本資料で用いるオブザーバは
 
@@ -213,7 +217,7 @@ $$
 \dot{\hat{x}}_R
 =
 A_{R,o}\hat{x}_R
-+B_{R,o}v_{R,m}
++B_{R,o}v_{s,m}
 +H\left(y_{R,m}-C_{R,o}\hat{x}_R\right)
 $$
 
@@ -225,29 +229,19 @@ $$
 
 である。添字 \(o\) はオブザーバ内部で使用する定数を表し、添字 \(m\) は測定値を表す。定数誤差評価では \(A_{R,o},B_{R,o},C_{R,o}\) に誤差付き定数を使用し、真値モデルには基準定数を使用した。
 
-実装では、計算を簡潔にするため空間ベクトル表記の補助量
-
-$$
-h=
-\begin{bmatrix}
-h_s\\
-h_r
-\end{bmatrix}
-$$
-
-を用いる。これは正式な設計ゲインを複素数で置き換えるものではなく、次の実数ゲイン行列 \(H\) と一対一に対応する省略表現である。
+今回の誘導機モデルはd軸/q軸で同じ抵抗・インダクタンスを持つため、実装では次の回転対称な実数行列構造を採用する。
 
 $$
 H=
 \begin{bmatrix}
-\mathrm{Re}(h_s) & -\mathrm{Im}(h_s)\\
-\mathrm{Im}(h_s) & \mathrm{Re}(h_s)\\
-\mathrm{Re}(h_r) & -\mathrm{Im}(h_r)\\
-\mathrm{Im}(h_r) & \mathrm{Re}(h_r)
+G_0 & -G_1\\
+G_1 & G_0\\
+G_2 & -G_3\\
+G_3 & G_2
 \end{bmatrix}
 $$
 
-誘導機のdq軸は、今回の線形モデルではd軸/q軸で同じ抵抗・インダクタンスを持つ。そのため、上式のような回転対称な \(H\) は自然な構造である。d軸/q軸で非対称な飽和やセンサ特性を入れる場合は、上記構造に制限せず、一般の実数 \(4\times2\) ゲイン \(H\) を直接設計する。
+ここで未知数は \(G_0,G_1,G_2,G_3\) の4つである。d軸/q軸で非対称な飽和やセンサ特性を入れる場合は、この構造に制限せず、一般の実数 \(4\times2\) ゲイン \(H\) を直接設計する。
 
 ## 3. オブザーバゲイン設計法
 
@@ -259,19 +253,21 @@ $$
 p_1=-\omega_o,\qquad p_2=-1.55\omega_o
 $$
 
-とした。本評価では
+とした。本評価では、電流制御帯域 \(\omega_{cc}=1000\ \mathrm{rad/s}\) に対して約2.2倍の観測帯域として
 
 $$
 \omega_o=2200\ \mathrm{rad/s}
 $$
 
-を用いたため、目標極は
+を用いた。第2極は重根を避け、数値条件と応答分離を確保するため \(p_2=1.55p_1\) とした。この値は一意の最適値ではなく、ノイズ感度、推定遅れ、離散化余裕のトレードオフに基づく設計例である。目標極は
 
 $$
 p_1=-2200,\qquad p_2=-3410
 $$
 
 である。
+
+制御周期を \(T_s=100\ \mu\mathrm{s}\) とすると、最速極 \(3410\ \mathrm{rad/s}\) はサンプリング角周波数 \(2\pi/T_s=62832\ \mathrm{rad/s}\) の約5.4%であり、離散化に対して十分な余裕を持つ。
 
 閉じたオブザーバ誤差行列は
 
@@ -287,60 +283,111 @@ $$
 
 となるように \(H\) を決定する。
 
-Python実装では、同じ極配置を空間ベクトル表記で計算している。これは実数4状態設計と等価であり、計算後に上式で \(H\) へ戻せる。空間ベクトル表記では、閉じた誤差行列は
+実装では、2.3節の構造を持つ \(H\) を各サンプルで直接計算する。以下の2次元回転対称ブロック
 
 $$
-A_h=A_o-hC_{s,o}
+X=x_0I_2+x_1J
 $$
 
-であり、所望特性多項式を
+を係数対
 
 $$
-\chi_d(s)=(s-p_1)(s-p_2)
+X\leftrightarrow \langle x_0,x_1\rangle
 $$
 
-とする。したがって、
+で表す。この表記は実数 \(2\times2\) 行列の省略表記であり、ゲインを別記号に置き換えるものではない。積は
 
 $$
-\mathrm{tr}(A_h)=p_1+p_2
+\langle a,b\rangle\langle c,d\rangle
+=\langle ac-bd,\ ad+bc\rangle
 $$
 
-$$
-\det(A_h)=p_1p_2
-$$
+で計算できる。
 
-を満たすように補助量 \(h\) を決定する。
-
-ランク1更新の性質より、
+オブザーバ内部モデルの各ブロックを
 
 $$
-\mathrm{tr}(A_o-hC_{s,o})
-=
-\mathrm{tr}(A_o)-C_{s,o}h
+A_{00}=\left\langle -\frac{R_sL_r}{D},\ -\omega_k\right\rangle,
+\quad
+A_{01}=\left\langle \frac{R_sM}{D},\ 0\right\rangle
 $$
 
 $$
-\det(A_o-hC_{s,o})
-=
-\det(A_o)-C_{s,o}\operatorname{adj}(A_o)h
+A_{10}=\left\langle \frac{R_rM}{D},\ 0\right\rangle,
+\quad
+A_{11}=\left\langle -\frac{R_rL_s}{D},\ -(\omega_k-\omega_r)\right\rangle
 $$
 
-である。したがって \(h\) は次の2元連立一次方程式で得られる。
+とし、
 
 $$
+c_0=\frac{L_r}{D},\qquad c_1=-\frac{M}{D}
+$$
+
+とおく。ブロック行列
+
+$$
+A_b=
 \begin{bmatrix}
-C_{s,o}\\
-C_{s,o}\operatorname{adj}(A_o)
-\end{bmatrix}
-h
-=
-\begin{bmatrix}
-\mathrm{tr}(A_o)-(p_1+p_2)\\
-\det(A_o)-p_1p_2
+A_{00} & A_{01}\\
+A_{10} & A_{11}
 \end{bmatrix}
 $$
 
-この式を各サンプルで解き、得られた \(h\) から実数ゲイン \(H\) を構成すれば、速度に依存するオンライン極配置オブザーバになる。Python実装では `observer_h_gain_by_pole_placement()` がこの計算を行う。
+について、
+
+$$
+\operatorname{adj}(A_b)=
+\begin{bmatrix}
+A_{11} & -A_{01}\\
+-A_{10} & A_{00}
+\end{bmatrix}
+$$
+
+を定義する。さらに
+
+$$
+\langle r_{20,0},r_{20,1}\rangle=c_0A_{11}-c_1A_{10}
+$$
+
+$$
+\langle r_{21,0},r_{21,1}\rangle=-c_0A_{01}+c_1A_{00}
+$$
+
+とする。
+
+閉じた誤差行列の特性を \(p_1,p_2\) に合わせる条件は、\(G_0,G_1,G_2,G_3\) に関する次の4元連立一次方程式になる。
+
+$$
+\begin{bmatrix}
+c_0 & 0 & c_1 & 0\\
+0 & c_0 & 0 & c_1\\
+r_{20,0} & -r_{20,1} & r_{21,0} & -r_{21,1}\\
+r_{20,1} & r_{20,0} & r_{21,1} & r_{21,0}
+\end{bmatrix}
+\begin{bmatrix}
+G_0\\G_1\\G_2\\G_3
+\end{bmatrix}
+=
+\begin{bmatrix}
+T_0-(p_1+p_2)\\
+T_1\\
+\Delta_0-p_1p_2\\
+\Delta_1
+\end{bmatrix}
+$$
+
+ここで
+
+$$
+\langle T_0,T_1\rangle=A_{00}+A_{11}
+$$
+
+$$
+\langle \Delta_0,\Delta_1\rangle=A_{00}A_{11}-A_{01}A_{10}
+$$
+
+である。この式を各サンプルで解けば、速度に依存するオンライン極配置オブザーバになる。Python実装では `observer_H_gain_by_pole_placement()` がこの計算を行い、C実装では `fo_observer_H()` が同じ4元連立一次方程式を解く。
 
 ![observer pole map](figures/observer_pole_map.png)
 
@@ -349,11 +396,11 @@ $$
 定数誤差、電圧誤差、電流誤差がない場合を考える。このとき真値モデルとオブザーバ内部モデルは一致し、
 
 $$
-\dot{x}_R=A_Rx_R+B_Rv_R
+\dot{x}_R=A_Rx_R+B_Rv_s
 $$
 
 $$
-\dot{\hat{x}}_R=A_R\hat{x}_R+B_Rv_R+H(y_R-C_R\hat{x}_R)
+\dot{\hat{x}}_R=A_R\hat{x}_R+B_Rv_s+H(y_R-C_R\hat{x}_R)
 $$
 
 である。推定誤差を
@@ -387,8 +434,6 @@ K e^{-\alpha t}\|\tilde{x}_R(0)\|
 $$
 
 を満たす \(K>0,\alpha>0\) が存在する。したがって、固定速度条件ではオブザーバ誤差は指数安定であり、一次磁束・二次磁束推定値は真値へ収束する。
-
-空間ベクトル表記で計算した \(h\) は、2.3節の変換により実数ゲイン \(H\) と等価である。したがって、実装上の空間ベクトル計算を用いても、安定性は上記の実数4状態オブザーバ \(A_R-HC_R\) の固有値で判断できる。
 
 定数誤差や測定誤差がある場合、誤差方程式は
 
@@ -501,9 +546,9 @@ $$
 | `isd_hat_a`, `isq_hat_a` | 推定一次電流 |
 | `ird_hat_a`, `irq_hat_a` | 推定二次電流 |
 | `omega_r_rad_s`, `omega_k_rad_s` | API定数と入力から計算した電気角速度 |
-| `h[4][2]` | 実数4状態のオブザーバゲイン行列 \(H\) |
+| `H[4][2]` | 実数4状態のオブザーバゲイン行列 \(H\) |
 
-C実装は空間ベクトルの補助量 \(h\) を内部計算に使うが、公開出力は実数4状態の \(H\) である。`h[4][2]` の並びは
+`H[4][2]` の並びは
 
 $$
 H=
@@ -515,14 +560,13 @@ H_{30} & H_{31}
 \end{bmatrix}
 $$
 
-であり、行は \(\psi_{sd},\psi_{sq},\psi_{rd},\psi_{rq}\)、列は \(i_{sd}\) 誤差、\(i_{sq}\) 誤差に対応する。
+であり、行は \(\psi_{sd},\psi_{sq},\psi_{rd},\psi_{rq}\)、列は \(i_{sd}\) 誤差、\(i_{sq}\) 誤差に対応する。C実装は3章の実数4元連立一次方程式を直接解いて \(H\) を求める。
 
 C実装のコンパイル確認は以下で行った。
 
 ```powershell
 gcc -std=c99 -Wall -Wextra -pedantic -c .\flux_observer_design\c\flux_observer.c
 ```
-
 ## 6. 誤差無し/有の評価結果
 
 ### 6.1 評価方法
@@ -576,9 +620,9 @@ $$
 
 | 条件 | 二次磁束RMS誤差 | 一次電流RMS誤差 | 二次磁束1%収束時間 | 一次電流1A収束時間 |
 |---|---:|---:|---:|---:|
-| 5000 r/min, +220 Nm | \(2.06\times10^{-13}\%\) | \(2.01\times10^{-13}\ \mathrm{A}\) | \(2.76\ \mathrm{ms}\) | \(3.65\ \mathrm{ms}\) |
-| 5000 r/min, -220 Nm | \(5.95\times10^{-13}\%\) | \(8.04\times10^{-13}\ \mathrm{A}\) | \(2.81\ \mathrm{ms}\) | \(3.70\ \mathrm{ms}\) |
-| 1000 r/min, -220 Nm | \(2.53\times10^{-12}\%\) | \(4.58\times10^{-13}\ \mathrm{A}\) | \(3.53\ \mathrm{ms}\) | \(3.69\ \mathrm{ms}\) |
+| 5000 r/min, +220 Nm | \(4.37\times10^{-13}\%\) | \(1.84\times10^{-12}\ \mathrm{A}\) | \(2.76\ \mathrm{ms}\) | \(3.65\ \mathrm{ms}\) |
+| 5000 r/min, -220 Nm | \(2.86\times10^{-13}\%\) | \(1.91\times10^{-12}\ \mathrm{A}\) | \(2.81\ \mathrm{ms}\) | \(3.70\ \mathrm{ms}\) |
+| 1000 r/min, -220 Nm | \(1.93\times10^{-12}\%\) | \(2.75\times10^{-13}\ \mathrm{A}\) | \(3.53\ \mathrm{ms}\) | \(3.69\ \mathrm{ms}\) |
 
 以下に、各動作点での一次磁束、二次磁束、一次電流、二次電流の真値とオブザーバ推定値を示す。破線が推定値であり、初期推定誤差を付与した後、各成分が真値へ収束している。
 

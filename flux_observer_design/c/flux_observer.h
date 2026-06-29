@@ -55,7 +55,7 @@ typedef struct FluxObserverOutput {
     float irq_hat_a;
     float omega_r_rad_s;
     float omega_k_rad_s;
-    float h[FLUX_OBSERVER_H_ROWS][FLUX_OBSERVER_H_COLS];
+    float H[FLUX_OBSERVER_H_ROWS][FLUX_OBSERVER_H_COLS];
 } FluxObserverOutput;
 
 typedef struct FluxObserver {
@@ -67,7 +67,7 @@ typedef struct FluxObserver {
     float observer_bandwidth_rad_s;
     float observer_pole_ratio;
     FluxObserverMotorConfig last_config;
-    float h[FLUX_OBSERVER_H_ROWS][FLUX_OBSERVER_H_COLS];
+    float H[FLUX_OBSERVER_H_ROWS][FLUX_OBSERVER_H_COLS];
 } FluxObserver;
 
 void FluxObserver_Init(FluxObserver *observer, FluxObserverApi api);
@@ -90,7 +90,7 @@ FluxObserverStatus FluxObserver_Step(
     FluxObserverOutput *output);
 FluxObserverStatus FluxObserver_GetLastH(
     const FluxObserver *observer,
-    float h[FLUX_OBSERVER_H_ROWS][FLUX_OBSERVER_H_COLS]);
+    float H[FLUX_OBSERVER_H_ROWS][FLUX_OBSERVER_H_COLS]);
 const char *FluxObserver_StatusString(FluxObserverStatus status);
 
 #ifdef __cplusplus
