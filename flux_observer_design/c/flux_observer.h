@@ -9,6 +9,7 @@ extern "C" {
 
 #define FLUX_OBSERVER_H_ROWS (4u)
 #define FLUX_OBSERVER_H_COLS (2u)
+#define FLUX_OBSERVER_POLE_COUNT (4u)
 
 typedef enum FluxObserverStatus {
     FLUX_OBSERVER_OK = 0,
@@ -64,14 +65,19 @@ typedef struct FluxObserver {
     float psi_sq_wb;
     float psi_rd_wb;
     float psi_rq_wb;
-    float observer_bandwidth_rad_s;
-    float observer_pole_ratio;
+    float observer_poles_rad_s[FLUX_OBSERVER_POLE_COUNT];
     FluxObserverMotorConfig last_config;
     float H[FLUX_OBSERVER_H_ROWS][FLUX_OBSERVER_H_COLS];
 } FluxObserver;
 
 void FluxObserver_Init(FluxObserver *observer, FluxObserverApi api);
-void FluxObserver_SetPolePlacement(FluxObserver *observer, float bandwidth_rad_s, float pole_ratio);
+void FluxObserver_SetPolePlacement(FluxObserver *observer, float bandwidth_rad_s, float fastest_ratio);
+void FluxObserver_SetObserverPoles(
+    FluxObserver *observer,
+    float pole0_rad_s,
+    float pole1_rad_s,
+    float pole2_rad_s,
+    float pole3_rad_s);
 FluxObserverStatus FluxObserver_ResetFlux(
     FluxObserver *observer,
     float psi_sd_wb,

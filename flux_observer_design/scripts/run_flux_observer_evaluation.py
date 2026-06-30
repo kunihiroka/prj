@@ -142,77 +142,59 @@ def state_matrix(params: MotorParams, omega_r: float, omega_k: float) -> tuple[n
     return a, b, c_s
 
 
+def observer_distribution_matrix() -> np.ndarray:
+    """Return the fixed output-error distribution matrix used in the Sylvester design."""
+    return np.array(
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ],
+        dtype=float,
+    )
+
+
+def desired_observer_poles(
+    observer_bandwidth: float = 2200.0,
+    pole_ratios: tuple[float, float, float, float] = (1.0, 1.25, 1.55, 2.0),
+) -> np.ndarray:
+    """Return the four real target poles of the real 4-state observer."""
+    return -observer_bandwidth * np.array(pole_ratios, dtype=float)
+
+
 def observer_H_gain_by_pole_placement(
     params: MotorParams,
     omega_r: float,
     omega_k: float,
     observer_bandwidth: float = 2200.0,
-    pole_ratio: float = 1.55,
+    pole_ratios: tuple[float, float, float, float] = (1.0, 1.25, 1.55, 2.0),
 ) -> np.ndarray:
-    """Return the real 4x2 observer gain matrix H by online pole placement.
+    """Return the real 4x2 observer gain H by full four-pole placement.
 
-    The gain is constrained to the dq-rotationally symmetric real form
+    The design uses the real 4-state matrices A and C directly. The target
+    error dynamics are F = diag(poles). With a fixed 4x2 distribution matrix G,
+    solve the standard observer Sylvester equation
 
-        H = [[G0, -G1], [G1, G0], [G2, -G3], [G3, G2]].
+        T*A - F*T = G*C
 
-    This is a real-matrix constraint, not a separate gain notation. The four
-    unknowns G0..G3 are obtained from trace and determinant matching of the
-    equivalent dq-symmetric two-axis plant, written as four real equations.
+    and then calculate H from
+
+        H = inv(T)*G.
+
+    If T is nonsingular, A - H*C is similar to F and therefore has all four
+    requested poles.
     """
-    d = params.det_l
-    cs0 = params.lr / d
-    cs1 = -params.lm / d
-    cr0 = -params.lm / d
-    cr1 = params.ls / d
+    a, _, c = state_matrix(params, omega_r, omega_k)
+    poles = desired_observer_poles(observer_bandwidth, pole_ratios)
+    f = np.diag(poles)
+    g = observer_distribution_matrix()
+    n = a.shape[0]
 
-    a00_re = -params.rs * cs0
-    a00_im = -omega_k
-    a01_re = -params.rs * cs1
-    a01_im = 0.0
-    a10_re = -params.rr * cr0
-    a10_im = 0.0
-    a11_re = -params.rr * cr1
-    a11_im = -(omega_k - omega_r)
-
-    adj00_re, adj00_im = a11_re, a11_im
-    adj01_re, adj01_im = -a01_re, -a01_im
-    adj10_re, adj10_im = -a10_re, -a10_im
-    adj11_re, adj11_im = a00_re, a00_im
-
-    row20_re = cs0 * adj00_re + cs1 * adj10_re
-    row20_im = cs0 * adj00_im + cs1 * adj10_im
-    row21_re = cs0 * adj01_re + cs1 * adj11_re
-    row21_im = cs0 * adj01_im + cs1 * adj11_im
-
-    desired_trace = -(1.0 + pole_ratio) * observer_bandwidth
-    desired_det = pole_ratio * observer_bandwidth * observer_bandwidth
-
-    rhs0_re = (a00_re + a11_re) - desired_trace
-    rhs0_im = a00_im + a11_im
-    det_re = (a00_re * a11_re - a00_im * a11_im) - (a01_re * a10_re - a01_im * a10_im)
-    det_im = (a00_re * a11_im + a00_im * a11_re) - (a01_re * a10_im + a01_im * a10_re)
-    rhs1_re = det_re - desired_det
-    rhs1_im = det_im
-
-    lhs = np.array(
-        [
-            [cs0, 0.0, cs1, 0.0],
-            [0.0, cs0, 0.0, cs1],
-            [row20_re, -row20_im, row21_re, -row21_im],
-            [row20_im, row20_re, row21_im, row21_re],
-        ],
-        dtype=float,
-    )
-    rhs = np.array([rhs0_re, rhs0_im, rhs1_re, rhs1_im], dtype=float)
-    g0, g1, g2, g3 = np.linalg.solve(lhs, rhs)
-    return np.array(
-        [[g0, -g1], [g1, g0], [g2, -g3], [g3, g2]],
-        dtype=float,
-    )
-
-
-def desired_observer_poles(observer_bandwidth: float = 2200.0, pole_ratio: float = 1.55) -> np.ndarray:
-    return np.array([-observer_bandwidth, -pole_ratio * observer_bandwidth], dtype=float)
+    sylvester_matrix = np.kron(a.T, np.eye(n)) - np.kron(np.eye(n), f)
+    rhs = (g @ c).reshape(n * n, order="F")
+    t_matrix = np.linalg.solve(sylvester_matrix, rhs).reshape((n, n), order="F")
+    return np.linalg.solve(t_matrix, g)
 
 
 def dq_scale_rotate(v: np.ndarray, scale_d: float, scale_q: float) -> np.ndarray:
