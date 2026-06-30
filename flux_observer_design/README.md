@@ -688,3 +688,7 @@ C実装のコンパイル確認は以下で行った。
 ```powershell
 gcc -std=c99 -Wall -Wextra -pedantic -fsyntax-only .\flux_observer_design\c\flux_observer.c
 ```
+
+## 参考文献
+
+1. 堀 洋一, Vincent Cotter, 茅 陽一, 「誘導電動機の磁束オブザーバに関する制御理論的考察」, 電気学会論文誌B, 106巻, 11号, pp.1001-1008, 1986. [J-STAGE PDF](https://www.jstage.jst.go.jp/article/ieejpes1972/106/11/106_11_1001/_pdf)
