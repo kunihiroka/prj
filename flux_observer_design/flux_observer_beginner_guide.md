@@ -27,13 +27,13 @@
 
 オブザーバの基本形は非常に単純である。
 
-$$
+```math
 \text{推定値の変化}
 =
 \text{モータモデルによる予測}
 +
 \text{測定値とのずれによる補正}
-$$
+```
 
 この「測定値とのずれによる補正」の強さを決める行列がオブザーバゲイン $H$ である。
 
@@ -43,27 +43,27 @@ $$
 
 この文書では、任意のdqベクトルを以下で表す。
 
-$$
+```math
 u=
 \begin{bmatrix}
 u_d\\
 u_q
 \end{bmatrix}
-$$
+```
 
 90度回転行列を以下で定義する。
 
-$$
+```math
 J=
 \begin{bmatrix}
 0 & -1\\
 1 & 0
 \end{bmatrix}
-$$
+```
 
 この行列をベクトルに掛けると、
 
-$$
+```math
 Ju=
 \begin{bmatrix}
 0 & -1\\
@@ -73,33 +73,33 @@ Ju=
 u_d\\
 u_q
 \end{bmatrix}
-$$
+```
 
 行列積を1行ずつ計算すると、
 
-$$
+```math
 Ju=
 \begin{bmatrix}
 0\cdot u_d+(-1)\cdot u_q\\
 1\cdot u_d+0\cdot u_q
 \end{bmatrix}
-$$
+```
 
 したがって、
 
-$$
+```math
 Ju=
 \begin{bmatrix}
 -u_q\\
 u_d
 \end{bmatrix}
-$$
+```
 
 である。つまり $J$ はdq平面上のベクトルを反時計回りに90度回す行列である。
 
 実装で使う磁束方程式には $-\omega J\psi$ が出る。例えば、
 
-$$
+```math
 -\omega J
 \begin{bmatrix}
 \psi_d\\
@@ -111,18 +111,18 @@ $$
 -\psi_q\\
 \psi_d
 \end{bmatrix}
-$$
+```
 
 なので、
 
-$$
+```math
 -\omega J\psi
 =
 \begin{bmatrix}
 \omega\psi_q\\
 -\omega\psi_d
 \end{bmatrix}
-$$
+```
 
 となる。これはC実装で、d軸式に $+\omega\psi_q$、q軸式に $-\omega\psi_d$ が現れることと一致する。
 
@@ -130,35 +130,35 @@ $$
 
 一次漏れインダクタンス、二次漏れインダクタンス、相互インダクタンスを以下で表す。
 
-$$
+```math
 L_{ls},\quad L_{lr},\quad M
-$$
+```
 
 一次自己インダクタンスと二次自己インダクタンスは、
 
-$$
+```math
 L_s=L_{ls}+M
-$$
+```
 
-$$
+```math
 L_r=L_{lr}+M
-$$
+```
 
 である。
 
 一次磁束 $\psi_s$ と二次磁束 $\psi_r$ は、一次電流 $i_s$ と二次電流 $i_r$ から以下で決まる。
 
-$$
+```math
 \psi_s=L_s i_s+M i_r
-$$
+```
 
-$$
+```math
 \psi_r=M i_s+L_r i_r
-$$
+```
 
 ここで、$\psi_s,\psi_r,i_s,i_r$ はすべてdqベクトルである。つまり、例えば
 
-$$
+```math
 \psi_s=
 \begin{bmatrix}
 \psi_{sd}\\
@@ -170,7 +170,7 @@ i_s=
 i_{sd}\\
 i_{sq}
 \end{bmatrix}
-$$
+```
 
 である。
 
@@ -178,7 +178,7 @@ $$
 
 まず、磁束と電流の関係を行列で書く。
 
-$$
+```math
 \begin{bmatrix}
 \psi_s\\
 \psi_r
@@ -192,105 +192,105 @@ M I_2 & L_r I_2
 i_s\\
 i_r
 \end{bmatrix}
-$$
+```
 
 ここで $I_2$ は2行2列の単位行列である。
 
 この関係を電流について解く。2つの式をもう一度書く。
 
-$$
+```math
 \psi_s=L_s i_s+M i_r
-$$
+```
 
-$$
+```math
 \psi_r=M i_s+L_r i_r
-$$
+```
 
 まず、一次電流 $i_s$ を求める。1本目の式に $L_r$ を掛ける。
 
-$$
+```math
 L_r\psi_s=L_sL_r i_s+ML_r i_r
-$$
+```
 
 2本目の式に $M$ を掛ける。
 
-$$
+```math
 M\psi_r=M^2 i_s+ML_r i_r
-$$
+```
 
 この2式を引き算する。
 
-$$
+```math
 L_r\psi_s-M\psi_r
 =
 (L_sL_r i_s+ML_r i_r)-(M^2 i_s+ML_r i_r)
-$$
+```
 
 右辺の $ML_r i_r$ は打ち消される。
 
-$$
+```math
 L_r\psi_s-M\psi_r
 =
 L_sL_r i_s-M^2 i_s
-$$
+```
 
 右辺を $i_s$ でくくる。
 
-$$
+```math
 L_r\psi_s-M\psi_r
 =
 (L_sL_r-M^2)i_s
-$$
+```
 
 ここで、
 
-$$
+```math
 D=L_sL_r-M^2
-$$
+```
 
 と定義する。すると、
 
-$$
+```math
 L_r\psi_s-M\psi_r=D i_s
-$$
+```
 
 なので、
 
-$$
+```math
 i_s=\frac{L_r\psi_s-M\psi_r}{D}
-$$
+```
 
 同様に、二次電流は以下になる。
 
-$$
+```math
 i_r=\frac{-M\psi_s+L_s\psi_r}{D}
-$$
+```
 
 成分で書くと、一次電流は以下である。
 
-$$
+```math
 i_{sd}=\frac{L_r\psi_{sd}-M\psi_{rd}}{D}
-$$
+```
 
-$$
+```math
 i_{sq}=\frac{L_r\psi_{sq}-M\psi_{rq}}{D}
-$$
+```
 
 二次電流は以下である。
 
-$$
+```math
 i_{rd}=\frac{-M\psi_{sd}+L_s\psi_{rd}}{D}
-$$
+```
 
-$$
+```math
 i_{rq}=\frac{-M\psi_{sq}+L_s\psi_{rq}}{D}
-$$
+```
 
 ## 4. 回転dq座標の誘導機状態方程式
 
 磁束オブザーバの状態を以下にする。
 
-$$
+```math
 x=
 \begin{bmatrix}
 \psi_{sd}\\
@@ -298,54 +298,54 @@ x=
 \psi_{rd}\\
 \psi_{rq}
 \end{bmatrix}
-$$
+```
 
 これは、一次磁束2成分と二次磁束2成分をそのまま並べた4状態である。固定座標ではなく、角速度 $\omega_k$ で回る回転dq座標上の状態である。
 
 一次側の磁束方程式は、
 
-$$
+```math
 \dot{\psi}_s=v_s-R_s i_s-\omega_k J\psi_s
-$$
+```
 
 である。二次側は短絡されているので二次電圧は0であり、
 
-$$
+```math
 \dot{\psi}_r=-R_r i_r-(\omega_k-\omega_r)J\psi_r
-$$
+```
 
 である。ここで、
 
-$$
+```math
 \omega_r=p\omega_m
-$$
+```
 
 である。$p$ は極対数、$\omega_m$ は機械角速度である。
 
 一次側へ3章の式を代入する。
 
-$$
+```math
 \dot{\psi}_s
 =
 v_s
 -R_s\left(\frac{L_r\psi_s-M\psi_r}{D}\right)
 -\omega_k J\psi_s
-$$
+```
 
 括弧を外す。
 
-$$
+```math
 \dot{\psi}_s
 =
 v_s
 -\frac{R_sL_r}{D}\psi_s
 +\frac{R_sM}{D}\psi_r
 -\omega_k J\psi_s
-$$
+```
 
 $\psi_s$ に掛かる項と $\psi_r$ に掛かる項に分ける。
 
-$$
+```math
 \dot{\psi}_s
 =
 \left(-\frac{R_sL_r}{D}I_2-\omega_k J\right)\psi_s
@@ -353,87 +353,87 @@ $$
 \left(\frac{R_sM}{D}I_2\right)\psi_r
 +
 v_s
-$$
+```
 
 次に二次側へ3章の式を代入する。
 
-$$
+```math
 \dot{\psi}_r
 =
 -R_r\left(\frac{-M\psi_s+L_s\psi_r}{D}\right)
 -(\omega_k-\omega_r)J\psi_r
-$$
+```
 
 括弧を外す。
 
-$$
+```math
 \dot{\psi}_r
 =
 \frac{R_rM}{D}\psi_s
 -\frac{R_rL_s}{D}\psi_r
 -(\omega_k-\omega_r)J\psi_r
-$$
+```
 
 $\psi_s$ に掛かる項と $\psi_r$ に掛かる項に分ける。
 
-$$
+```math
 \dot{\psi}_r
 =
 \left(\frac{R_rM}{D}I_2\right)\psi_s
 +
 \left(-\frac{R_rL_s}{D}I_2-(\omega_k-\omega_r)J\right)\psi_r
-$$
+```
 
 以上をまとめると、
 
-$$
+```math
 \dot{x}=Ax+Bv_s
-$$
+```
 
 であり、
 
-$$
+```math
 A=
 \begin{bmatrix}
 -\frac{R_sL_r}{D}I_2-\omega_kJ & \frac{R_sM}{D}I_2\\
 \frac{R_rM}{D}I_2 & -\frac{R_rL_s}{D}I_2-(\omega_k-\omega_r)J
 \end{bmatrix}
-$$
+```
 
-$$
+```math
 B=
 \begin{bmatrix}
 I_2\\
 0_{2\times2}
 \end{bmatrix}
-$$
+```
 
 である。
 
 一次電流は測定できるので、出力を
 
-$$
+```math
 y=i_s
-$$
+```
 
 とする。3章の式より、
 
-$$
+```math
 y=i_s=\frac{L_r\psi_s-M\psi_r}{D}
-$$
+```
 
 だから、
 
-$$
+```math
 y=Cx
-$$
+```
 
-$$
+```math
 C=
 \begin{bmatrix}
 \frac{L_r}{D}I_2 & -\frac{M}{D}I_2
 \end{bmatrix}
-$$
+```
 
 である。
 
@@ -441,57 +441,57 @@ $$
 
 モータの状態方程式は以下だった。
 
-$$
+```math
 \dot{x}=Ax+Bv_s
-$$
+```
 
-$$
+```math
 y=Cx
-$$
+```
 
 これと同じ形のモデルをオブザーバ内部に持つ。ただし、オブザーバが持つ状態は真値 $x$ ではなく推定値 $\hat{x}$ である。
 
 モデルだけで予測するなら、
 
-$$
+```math
 \dot{\hat{x}}=A\hat{x}+Bv_s
-$$
+```
 
 となる。しかし、これだけでは初期値誤差、電圧誤差、定数誤差で推定値がずれ続ける。そこで、測定電流と推定電流の差を使って補正する。
 
 推定電流は、
 
-$$
+```math
 \hat{y}=C\hat{x}
-$$
+```
 
 である。測定電流 $y$ と推定電流 $\hat{y}$ の差は、
 
-$$
+```math
 y-\hat{y}
 =
 y-C\hat{x}
-$$
+```
 
 である。この差を出力誤差、またはイノベーションと呼ぶ。
 
 補正付きのオブザーバは、
 
-$$
+```math
 \dot{\hat{x}}=A\hat{x}+Bv_s+H(y-C\hat{x})
-$$
+```
 
 である。
 
 ここで $y-C\hat{x}$ は2成分のベクトルである。状態 $\hat{x}$ は4成分である。したがって、2成分の誤差を4成分の状態補正へ変換するために、$H$ は4行2列になる。
 
-$$
+```math
 H\in\mathbb{R}^{4\times2}
-$$
+```
 
 実装上は、
 
-$$
+```math
 H=
 \begin{bmatrix}
 H_{00} & H_{01}\\
@@ -499,7 +499,7 @@ H_{10} & H_{11}\\
 H_{20} & H_{21}\\
 H_{30} & H_{31}
 \end{bmatrix}
-$$
+```
 
 である。
 
@@ -507,108 +507,108 @@ $$
 
 オブザーバ設計で最も重要なのは、推定誤差が0へ収束するかどうかである。推定誤差を以下で定義する。
 
-$$
+```math
 \tilde{x}=x-\hat{x}
-$$
+```
 
 この式を時間で微分する。
 
-$$
+```math
 \dot{\tilde{x}}
 =
 \frac{d}{dt}(x-\hat{x})
-$$
+```
 
 微分は引き算に分配できるので、
 
-$$
+```math
 \dot{\tilde{x}}
 =
 \dot{x}-\dot{\hat{x}}
-$$
+```
 
 真値モデルとオブザーバ式を代入する。
 
-$$
+```math
 \dot{\tilde{x}}
 =
 (Ax+Bv_s)
 -
 (A\hat{x}+Bv_s+H(y-C\hat{x}))
-$$
+```
 
 右辺を分解する。
 
-$$
+```math
 \dot{\tilde{x}}
 =
 Ax+Bv_s
 -A\hat{x}
 -Bv_s
 -H(y-C\hat{x})
-$$
+```
 
 $+Bv_s$ と $-Bv_s$ は打ち消される。
 
-$$
+```math
 \dot{\tilde{x}}
 =
 Ax-A\hat{x}-H(y-C\hat{x})
-$$
+```
 
 最初の2項を $A$ でくくる。
 
-$$
+```math
 Ax-A\hat{x}=A(x-\hat{x})
-$$
+```
 
 したがって、
 
-$$
+```math
 \dot{\tilde{x}}
 =
 A(x-\hat{x})-H(y-C\hat{x})
-$$
+```
 
 ここで $y=Cx$ なので、
 
-$$
+```math
 y-C\hat{x}=Cx-C\hat{x}
-$$
+```
 
 右辺を $C$ でくくる。
 
-$$
+```math
 Cx-C\hat{x}=C(x-\hat{x})
-$$
+```
 
 よって、
 
-$$
+```math
 y-C\hat{x}=C(x-\hat{x})
-$$
+```
 
 $\tilde{x}=x-\hat{x}$ だから、
 
-$$
+```math
 y-C\hat{x}=C\tilde{x}
-$$
+```
 
 これを誤差の式に戻す。
 
-$$
+```math
 \dot{\tilde{x}}
 =
 A\tilde{x}-HC\tilde{x}
-$$
+```
 
 共通の $\tilde{x}$ でまとめる。
 
-$$
+```math
 \dot{\tilde{x}}
 =
 (A-HC)\tilde{x}
-$$
+```
 
 これが誤差方程式である。この式から分かる重要なことは、誤差の動きは $A-HC$ で決まるということである。
 
@@ -616,23 +616,23 @@ $$
 
 まず1次元の簡単な微分方程式を見る。
 
-$$
+```math
 \dot{e}=\lambda e
-$$
+```
 
 この解は、
 
-$$
+```math
 e(t)=e(0)e^{\lambda t}
-$$
+```
 
 である。
 
 もし $\lambda<0$ なら、時間が進むほど $e^{\lambda t}$ は0へ近づく。したがって、
 
-$$
+```math
 \lim_{t\to\infty}e(t)=0
-$$
+```
 
 である。
 
@@ -640,63 +640,63 @@ $$
 
 4状態の誤差方程式
 
-$$
+```math
 \dot{\tilde{x}}=(A-HC)\tilde{x}
-$$
+```
 
 でも考え方は同じである。行列 $A-HC$ の固有値を
 
-$$
+```math
 \lambda_1,\lambda_2,\lambda_3,\lambda_4
-$$
+```
 
 とすると、誤差は複数のモードの足し合わせとして動く。各モードは概念的に、
 
-$$
+```math
 e^{\lambda_i t}
-$$
+```
 
 の形を持つ。
 
 したがって、すべての固有値について、
 
-$$
+```math
 \mathrm{Re}(\lambda_i)<0
-$$
+```
 
 であれば、すべての誤差モードが減衰する。このとき、
 
-$$
+```math
 \lim_{t\to\infty}\|\tilde{x}(t)\|=0
-$$
+```
 
 となり、推定誤差は0へ収束する。これを漸近安定という。
 
 固有値の実部は収束速度を決める。例えば、
 
-$$
+```math
 \lambda=-1000
-$$
+```
 
 なら、おおまかな時定数は
 
-$$
+```math
 \tau\simeq\frac{1}{1000}=1\ \mathrm{ms}
-$$
+```
 
 である。実部がより負に大きいほど収束は速い。
 
 固有値に虚部がある場合、
 
-$$
+```math
 \lambda=-\alpha+j\beta
-$$
+```
 
 のように書ける。このとき、誤差は
 
-$$
+```math
 e^{-\alpha t}
-$$
+```
 
 で減衰しながら、角周波数 $\beta$ で振動する。つまり、実部 $-\alpha$ は減衰、虚部 $\beta$ は振動を決める。
 
@@ -704,91 +704,91 @@ $$
 
 オブザーバの極とは、誤差方程式の固有値である。つまり、
 
-$$
+```math
 \lambda(A-HC)
-$$
+```
 
 がオブザーバの極である。
 
 設計者は、オブザーバの誤差をどのくらい速く消したいかを決める。例えば、4つの極を
 
-$$
+```math
 p_1=-2200
-$$
+```
 
-$$
+```math
 p_2=-2750
-$$
+```
 
-$$
+```math
 p_3=-3410
-$$
+```
 
-$$
+```math
 p_4=-4400
-$$
+```
 
 に置きたいとする。これは、すべての誤差モードを負の実軸上に置く設計である。
 
 目標は、
 
-$$
+```math
 \lambda(A-HC)=\{p_1,p_2,p_3,p_4\}
-$$
+```
 
 を満たす $H$ を求めることである。
 
 ここで注意すべきことがある。$A$ は4行4列、$C$ は2行4列、$H$ は4行2列である。したがって $HC$ は、
 
-$$
+```math
 HC
 \in
 \mathbb{R}^{4\times2}
 \mathbb{R}^{2\times4}
 =
 \mathbb{R}^{4\times4}
-$$
+```
 
 である。よって、
 
-$$
+```math
 A-HC
-$$
+```
 
 は4行4列になり、4個の固有値を持つ。
 
 ここで、誘導機の回転dq座標4状態モデルについて、$A-HC$ を実際に展開しておく。状態は、
 
-$$
+```math
 x=
 \begin{bmatrix}
 \psi_{sd} & \psi_{sq} & \psi_{rd} & \psi_{rq}
 \end{bmatrix}^{T}
-$$
+```
 
 である。出力は一次電流
 
-$$
+```math
 y=
 \begin{bmatrix}
 i_{sd} & i_{sq}
 \end{bmatrix}^{T}
 =Cx
-$$
+```
 
 であり、
 
-$$
+```math
 C=
 \begin{bmatrix}
 \frac{L_r}{D} & 0 & -\frac{M}{D} & 0\\
 0 & \frac{L_r}{D} & 0 & -\frac{M}{D}
 \end{bmatrix}
-$$
+```
 
 である。オブザーバゲインを、
 
-$$
+```math
 H=
 \begin{bmatrix}
 h_{11} & h_{12}\\
@@ -796,11 +796,11 @@ h_{21} & h_{22}\\
 h_{31} & h_{32}\\
 h_{41} & h_{42}
 \end{bmatrix}
-$$
+```
 
 と置く。まず $HC$ を計算する。$H$ は4行2列、$C$ は2行4列なので、
 
-$$
+```math
 HC=
 \begin{bmatrix}
 h_{11} & h_{12}\\
@@ -812,11 +812,11 @@ h_{41} & h_{42}
 \frac{L_r}{D} & 0 & -\frac{M}{D} & 0\\
 0 & \frac{L_r}{D} & 0 & -\frac{M}{D}
 \end{bmatrix}
-$$
+```
 
 である。1行目を例にすると、
 
-$$
+```math
 \begin{bmatrix}
 h_{11} & h_{12}
 \end{bmatrix}
@@ -831,11 +831,11 @@ h_{11} & h_{12}
 -\frac{M}{D}h_{11} &
 -\frac{M}{D}h_{12}
 \end{bmatrix}
-$$
+```
 
 となる。同じ計算を4行分行うと、
 
-$$
+```math
 HC=
 \begin{bmatrix}
 \frac{L_r}{D}h_{11} & \frac{L_r}{D}h_{12} & -\frac{M}{D}h_{11} & -\frac{M}{D}h_{12}\\
@@ -843,13 +843,13 @@ HC=
 \frac{L_r}{D}h_{31} & \frac{L_r}{D}h_{32} & -\frac{M}{D}h_{31} & -\frac{M}{D}h_{32}\\
 \frac{L_r}{D}h_{41} & \frac{L_r}{D}h_{42} & -\frac{M}{D}h_{41} & -\frac{M}{D}h_{42}
 \end{bmatrix}
-$$
+```
 
 である。
 
 一方、誘導機の $A$ は、
 
-$$
+```math
 A=
 \begin{bmatrix}
 -\frac{R_sL_r}{D} & \omega_k & \frac{R_sM}{D} & 0\\
@@ -857,25 +857,25 @@ A=
 \frac{R_rM}{D} & 0 & -\frac{R_rL_s}{D} & \omega_{\mathrm{slip}}\\
 0 & \frac{R_rM}{D} & -\omega_{\mathrm{slip}} & -\frac{R_rL_s}{D}
 \end{bmatrix}
-$$
+```
 
 である。ここで、
 
-$$
+```math
 \omega_{\mathrm{slip}}=\omega_k-\omega_r
-$$
+```
 
 であり、
 
-$$
+```math
 \omega_r=p\omega_m
-$$
+```
 
 である。
 
 したがって、$A-HC$ は $A$ の各要素から $HC$ の対応する要素を引けばよい。
 
-$$
+```math
 A-HC=
 \begin{bmatrix}
 -\frac{R_sL_r}{D}-\frac{L_r}{D}h_{11}
@@ -910,13 +910,13 @@ A-HC=
 &
 -\frac{R_rL_s}{D}+\frac{M}{D}h_{42}
 \end{bmatrix}
-$$
+```
 
 この4行4列行列の特性方程式
 
-$$
+```math
 \det\{sI-(A-HC)\}=0
-$$
+```
 
 の根が、誘導機磁束オブザーバの極である。つまり、ゲイン $H$ を変えると上の行列の各要素が変わり、その結果として特性方程式の根、すなわちオブザーバ極が動く。
 
@@ -924,27 +924,27 @@ $$
 
 前節の $A-HC$ をそのまま使うと式が長くなるため、まず記号を短く置く。
 
-$$
+```math
 a=\frac{R_sL_r}{D},\qquad
 b=\frac{R_sM}{D},\qquad
 c=\frac{L_r}{D},\qquad
 m=\frac{M}{D}
-$$
+```
 
-$$
+```math
 r=\frac{R_rM}{D},\qquad
 d=\frac{R_rL_s}{D}
-$$
+```
 
 また、
 
-$$
+```math
 \omega_{\mathrm{slip}}=\omega_k-\omega_r
-$$
+```
 
 とする。このとき、前節の $A-HC$ は以下の形である。
 
-$$
+```math
 A-HC=
 \begin{bmatrix}
 -a-ch_{11} & \omega_k-ch_{12} & b+mh_{11} & mh_{12}\\
@@ -952,17 +952,17 @@ A-HC=
 r-ch_{31} & -ch_{32} & -d+mh_{31} & \omega_{\mathrm{slip}}+mh_{32}\\
 -ch_{41} & r-ch_{42} & -\omega_{\mathrm{slip}}+mh_{41} & -d+mh_{42}
 \end{bmatrix}
-$$
+```
 
 特性方程式は、
 
-$$
+```math
 P(s)=\det\{sI-(A-HC)\}=0
-$$
+```
 
 である。ここで $sI-(A-HC)$ を具体的に書くと、
 
-$$
+```math
 P(s)=
 \det
 \begin{bmatrix}
@@ -998,105 +998,105 @@ ch_{41}
 &
 s+d-mh_{42}
 \end{bmatrix}
-$$
+```
 
 である。この行列式を展開すると、必ず4次多項式になる。
 
-$$
+```math
 P(s)=s^4+a_3s^3+a_2s^2+a_1s+a_0
-$$
+```
 
 まず、$s^3$ 係数は比較的簡単に書ける。特性多項式 $\det(sI-F)$ の $s^3$ 係数は $-\mathrm{tr}(F)$ である。ここで、
 
-$$
+```math
 F=A-HC
-$$
+```
 
 と置くと、
 
-$$
+```math
 a_3=-\mathrm{tr}(F)
-$$
+```
 
 である。$F=A-HC$ の対角成分は、
 
-$$
+```math
 F_{11}=-a-ch_{11}
-$$
+```
 
-$$
+```math
 F_{22}=-a-ch_{22}
-$$
+```
 
-$$
+```math
 F_{33}=-d+mh_{31}
-$$
+```
 
-$$
+```math
 F_{44}=-d+mh_{42}
-$$
+```
 
 なので、
 
-$$
+```math
 \mathrm{tr}(F)=-2a-2d-c(h_{11}+h_{22})+m(h_{31}+h_{42})
-$$
+```
 
 したがって、
 
-$$
+```math
 a_3=2a+2d+c(h_{11}+h_{22})-m(h_{31}+h_{42})
-$$
+```
 
 である。
 
 残りの係数を完全展開すると非常に長くなる。実装や検算では、完全展開式を手で扱うより、トレースを使った以下の形で計算するほうが安全である。
 
-$$
+```math
 a_2=\frac{1}{2}\left[\{\mathrm{tr}(F)\}^2-\mathrm{tr}(F^2)\right]
-$$
+```
 
-$$
+```math
 a_1=-\frac{1}{6}\left[\{\mathrm{tr}(F)\}^3-3\mathrm{tr}(F)\mathrm{tr}(F^2)+2\mathrm{tr}(F^3)\right]
-$$
+```
 
-$$
+```math
 a_0=\det(-F)
-$$
+```
 
 4次なので $\det(-F)=\det(F)$ であり、したがって
 
-$$
+```math
 a_0=\det(F)
-$$
+```
 
 としてよい。
 
 これらを使えば、特性多項式は
 
-$$
+```math
 P(s)=s^4+a_3s^3+a_2s^2+a_1s+a_0
-$$
+```
 
 として計算できる。
 
 極配置で $H$ が正しく設計されていれば、この特性多項式は指定極
 
-$$
+```math
 p_1,\quad p_2,\quad p_3,\quad p_4
-$$
+```
 
 に対して、
 
-$$
+```math
 P(s)=(s-p_1)(s-p_2)(s-p_3)(s-p_4)
-$$
+```
 
 になる。例えば、すべての極を負の実数に置いた場合、$p_i<0$ なので、各因子は
 
-$$
+```math
 s-p_i=s+|p_i|
-$$
+```
 
 となる。したがって、指定極が左半平面にあれば、理想モデルでは推定誤差は0へ収束する。
 
@@ -1106,21 +1106,21 @@ $$
 
 誤差方程式は、
 
-$$
+```math
 \dot{\tilde{x}}=(A-HC)\tilde{x}
-$$
+```
 
 である。設計者が望む誤差方程式を、
 
-$$
+```math
 \dot{z}=Fz
-$$
+```
 
 とする。ここで $F$ は目標極を持つ4行4列行列である。
 
 方式Aなら、
 
-$$
+```math
 F=
 \begin{bmatrix}
 p_1 & 0 & 0 & 0\\
@@ -1128,107 +1128,107 @@ p_1 & 0 & 0 & 0\\
 0 & 0 & p_3 & 0\\
 0 & 0 & 0 & p_4
 \end{bmatrix}
-$$
+```
 
 である。
 
 実際の誤差 $\tilde{x}$ と、設計用の誤差座標 $z$ の間に、以下の変換を置く。
 
-$$
+```math
 z=T\tilde{x}
-$$
+```
 
 ここで $T$ は正則な4行4列行列である。正則とは、逆行列が存在するという意味である。
 
 この式を時間微分する。
 
-$$
+```math
 \dot{z}=T\dot{\tilde{x}}
-$$
+```
 
 誤差方程式を代入する。
 
-$$
+```math
 \dot{z}=T(A-HC)\tilde{x}
-$$
+```
 
 括弧を展開する。
 
-$$
+```math
 \dot{z}=TA\tilde{x}-THC\tilde{x}
-$$
+```
 
 ここで、
 
-$$
+```math
 G=TH
-$$
+```
 
 と定義する。すると、
 
-$$
+```math
 \dot{z}=TA\tilde{x}-GC\tilde{x}
-$$
+```
 
 一方、設計用の目標誤差方程式は、
 
-$$
+```math
 \dot{z}=Fz
-$$
+```
 
 である。$z=T\tilde{x}$ を代入する。
 
-$$
+```math
 \dot{z}=FT\tilde{x}
-$$
+```
 
 同じ $\dot{z}$ を表しているので、
 
-$$
+```math
 TA\tilde{x}-GC\tilde{x}=FT\tilde{x}
-$$
+```
 
 この式は任意の $\tilde{x}$ について成り立ってほしい。したがって、$\tilde{x}$ を外して、
 
-$$
+```math
 TA-GC=FT
-$$
+```
 
 を得る。これを並べ替える。
 
-$$
+```math
 TA-FT=GC
-$$
+```
 
 これが本実装で使うSylvester方程式である。
 
-$$
+```math
 TA-FT=GC
-$$
+```
 
 この式を解いて $T$ が得られれば、
 
-$$
+```math
 G=TH
-$$
+```
 
 だったので、左から $T^{-1}$ を掛ける。
 
-$$
+```math
 T^{-1}G=T^{-1}TH
-$$
+```
 
 $T^{-1}T=I$ なので、
 
-$$
+```math
 T^{-1}G=H
-$$
+```
 
 したがって、
 
-$$
+```math
 H=T^{-1}G
-$$
+```
 
 である。
 
@@ -1247,28 +1247,28 @@ $$
 
 方式Aでは、4つの極をすべて実数で指定する。
 
-$$
+```math
 F=
 \mathrm{diag}(p_1,p_2,p_3,p_4)
-$$
+```
 
 例えば、
 
-$$
+```math
 p_1=-\omega_o
-$$
+```
 
-$$
+```math
 p_2=-1.25\omega_o
-$$
+```
 
-$$
+```math
 p_3=-1.55\omega_o
-$$
+```
 
-$$
+```math
 p_4=-2.0\omega_o
-$$
+```
 
 のようにする。
 
@@ -1284,17 +1284,17 @@ $$
 
 2状態の簡単な誤差方程式を考える。
 
-$$
+```math
 e_{dq}=
 \begin{bmatrix}
 e_d\\
 e_q
 \end{bmatrix}
-$$
+```
 
 次の行列を使う。
 
-$$
+```math
 \dot{e}_{dq}
 =
 \begin{bmatrix}
@@ -1302,35 +1302,35 @@ $$
 \beta & -\alpha
 \end{bmatrix}
 e_{dq}
-$$
+```
 
 この行列の意味を成分で書く。
 
-$$
+```math
 \dot{e}_d=-\alpha e_d-\beta e_q
-$$
+```
 
-$$
+```math
 \dot{e}_q=\beta e_d-\alpha e_q
-$$
+```
 
 $-\alpha$ の項は、$e_d,e_q$ の両方を減衰させる。$\beta$ の項は、d軸とq軸の誤差を互いに回り込ませる。したがって、この行列は「減衰しながら回転する誤差」を表す。
 
 固有値は、
 
-$$
+```math
 -\alpha+j\beta
-$$
+```
 
-$$
+```math
 -\alpha-j\beta
-$$
+```
 
 である。したがって、$\alpha$ は減衰速度、$\beta$ は振動角周波数を決める。
 
 4状態では、この2状態ブロックを2組使う。
 
-$$
+```math
 F_{\alpha\beta}=
 \begin{bmatrix}
 -\alpha & -\beta & 0 & 0\\
@@ -1338,19 +1338,19 @@ F_{\alpha\beta}=
 0 & 0 & -\alpha & -\beta\\
 0 & 0 & \beta & -\alpha
 \end{bmatrix}
-$$
+```
 
 この $F_{\alpha\beta}$ を9章のSylvester方程式に入れる。
 
-$$
+```math
 TA-F_{\alpha\beta}T=GC
-$$
+```
 
 その後は方式Aと同じである。
 
-$$
+```math
 H=T^{-1}G
-$$
+```
 
 方式Bは、極を「実部と虚部」で指定できるため、回転座標系の誤差設計として見通しがよい。ただし、今回の実装では方式Aと同じくSylvester方程式を解くため、オンライン計算負荷は軽くならない。
 
@@ -1358,7 +1358,7 @@ $$
 
 方式Cは、方式A/Bと構成が異なる。方式A/Bは状態を
 
-$$
+```math
 \hat{x}=
 \begin{bmatrix}
 \hat{\psi}_{sd}\\
@@ -1366,70 +1366,70 @@ $$
 \hat{\psi}_{rd}\\
 \hat{\psi}_{rq}
 \end{bmatrix}
-$$
+```
 
 とする。一方、方式Cでは推定ロータ磁束方向をd軸に選ぶ。したがって、
 
-$$
+```math
 \hat{\psi}_{Rq}=0
-$$
+```
 
 を常に満たす座標系を使う。
 
 状態は、
 
-$$
+```math
 \hat{x}=
 \begin{bmatrix}
 \hat{i}_{sd}\\
 \hat{i}_{sq}\\
 \hat{\psi}_R
 \end{bmatrix}
-$$
+```
 
 の3成分に見える。ただし、これはフルオーダ情報を失ったという意味ではない。推定ロータ磁束の角度は、状態ベクトルの外側で
 
-$$
+```math
 \dot{\hat{\theta}}=\omega_s
-$$
+```
 
 として積分される。したがって、推定電流2成分、推定ロータ磁束の大きさ、推定ロータ磁束角を合わせて、物理的にはフルオーダの情報を持っている。
 
 方式Cでは、T形定数を逆Gamma形定数へ変換する。
 
-$$
+```math
 L_{\sigma}=L_s-\frac{M^2}{L_r}
-$$
+```
 
-$$
+```math
 L_M=\frac{M^2}{L_r}
-$$
+```
 
-$$
+```math
 R_R=R_r\left(\frac{M}{L_r}\right)^2
-$$
+```
 
-$$
+```math
 R_{\sigma}=R_s+R_R
-$$
+```
 
-$$
+```math
 \alpha=\frac{R_R}{L_M}
-$$
+```
 
 電流推定誤差を以下で定義する。
 
-$$
+```math
 \tilde{i}_{sd}=i_{sd}-\hat{i}_{sd}
-$$
+```
 
-$$
+```math
 \tilde{i}_{sq}=i_{sq}-\hat{i}_{sq}
-$$
+```
 
 方式Cの更新式は以下である。
 
-$$
+```math
 L_{\sigma}\frac{d\hat{i}_{sd}}{dt}
 =
 \alpha\hat{\psi}_R
@@ -1437,9 +1437,9 @@ L_{\sigma}\frac{d\hat{i}_{sd}}{dt}
 +\omega_sL_{\sigma}\hat{i}_{sq}
 +u_{sd}
 +L_{\sigma}(\gamma\tilde{i}_{sd}-\hat{\omega}_m\tilde{i}_{sq})
-$$
+```
 
-$$
+```math
 L_{\sigma}\frac{d\hat{i}_{sq}}{dt}
 =
 -\hat{\omega}_m\hat{\psi}_R
@@ -1447,20 +1447,20 @@ L_{\sigma}\frac{d\hat{i}_{sq}}{dt}
 -\omega_sL_{\sigma}\hat{i}_{sd}
 +u_{sq}
 +L_{\sigma}(\gamma\tilde{i}_{sq}+\hat{\omega}_m\tilde{i}_{sd})
-$$
+```
 
-$$
+```math
 \frac{d\hat{\psi}_R}{dt}
 =
 -\alpha\hat{\psi}_R
 +R_R\hat{i}_{sd}
 +(k_1\alpha_i-\gamma)L_{\sigma}\tilde{i}_{sd}
 -(\omega_s-\hat{\omega}_m)L_{\sigma}\tilde{i}_{sq}
-$$
+```
 
 座標角速度 $\omega_s$ は、
 
-$$
+```math
 \omega_s
 =
 \hat{\omega}_m
@@ -1472,23 +1472,23 @@ R_R i_{sq}
 }{
 \hat{\psi}_R-L_{\sigma}\tilde{i}_{sd}
 }
-$$
+```
 
 である。
 
 ここで、
 
-$$
+```math
 \gamma=\alpha_i-\alpha
-$$
+```
 
-$$
+```math
 k_1=\frac{b\alpha}{\alpha^2+\hat{\omega}_m^2}
-$$
+```
 
-$$
+```math
 k_2=\frac{b\hat{\omega}_m}{\alpha^2+\hat{\omega}_m^2}
-$$
+```
 
 である。
 
@@ -1496,51 +1496,51 @@ $$
 
 方式Cの核心は、推定ロータ磁束座標を使うことである。この座標では、
 
-$$
+```math
 \hat{\psi}_{Rq}=0
-$$
+```
 
 でなければならない。さらに、常に0に保ちたいので、時間微分も0でなければならない。
 
-$$
+```math
 \frac{d\hat{\psi}_{Rq}}{dt}=0
-$$
+```
 
 Appendix Aの構成では、q軸ロータ磁束の微分は以下の形に整理される。
 
-$$
+```math
 \frac{d\hat{\psi}_{Rq}}{dt}
 =
 R_R i_{sq}
 +k_2\alpha_iL_{\sigma}\tilde{i}_{sd}
 -\gamma L_{\sigma}\tilde{i}_{sq}
 -(\omega_s-\hat{\omega}_m)(\hat{\psi}_R-L_{\sigma}\tilde{i}_{sd})
-$$
+```
 
 これを0にしたいので、
 
-$$
+```math
 0
 =
 R_R i_{sq}
 +k_2\alpha_iL_{\sigma}\tilde{i}_{sd}
 -\gamma L_{\sigma}\tilde{i}_{sq}
 -(\omega_s-\hat{\omega}_m)(\hat{\psi}_R-L_{\sigma}\tilde{i}_{sd})
-$$
+```
 
 最後の項を右辺へ移す。
 
-$$
+```math
 (\omega_s-\hat{\omega}_m)(\hat{\psi}_R-L_{\sigma}\tilde{i}_{sd})
 =
 R_R i_{sq}
 +k_2\alpha_iL_{\sigma}\tilde{i}_{sd}
 -\gamma L_{\sigma}\tilde{i}_{sq}
-$$
+```
 
 両辺を $\hat{\psi}_R-L_{\sigma}\tilde{i}_{sd}$ で割る。
 
-$$
+```math
 \omega_s-\hat{\omega}_m
 =
 \frac{
@@ -1550,11 +1550,11 @@ R_R i_{sq}
 }{
 \hat{\psi}_R-L_{\sigma}\tilde{i}_{sd}
 }
-$$
+```
 
 最後に $\hat{\omega}_m$ を右辺へ移す。
 
-$$
+```math
 \omega_s
 =
 \hat{\omega}_m
@@ -1566,25 +1566,25 @@ R_R i_{sq}
 }{
 \hat{\psi}_R-L_{\sigma}\tilde{i}_{sd}
 }
-$$
+```
 
 これが方式Cの $\omega_s$ 計算式である。つまり、この式は後付けのすべり推定ではない。$\hat{\psi}_{Rq}=0$ という座標拘束を満たすための条件である。
 
 電気角のロータ速度を
 
-$$
+```math
 \hat{\omega}_m=p\omega_m
-$$
+```
 
 と見なすと、すべり周波数は
 
-$$
+```math
 \omega_{\mathrm{slip}}=\omega_s-\hat{\omega}_m
-$$
+```
 
 である。したがって、方式Cでは
 
-$$
+```math
 \omega_{\mathrm{slip}}
 =
 \frac{
@@ -1594,27 +1594,27 @@ R_R i_{sq}
 }{
 \hat{\psi}_R-L_{\sigma}\tilde{i}_{sd}
 }
-$$
+```
 
 となる。
 
 推定誤差が0の場合、
 
-$$
+```math
 \tilde{i}_{sd}=0
-$$
+```
 
-$$
+```math
 \tilde{i}_{sq}=0
-$$
+```
 
 である。すると、
 
-$$
+```math
 \omega_{\mathrm{slip}}
 =
 \frac{R_R i_{sq}}{\hat{\psi}_R}
-$$
+```
 
 となる。これはロータ磁束基準の通常のすべり式に対応する。
 
@@ -1633,37 +1633,37 @@ $$
 
 まず、
 
-$$
+```math
 \gamma=\alpha_i-\alpha
-$$
+```
 
 を計算する。ここで $\alpha=R_R/L_M$ はモータ定数で決まる値である。したがって、$\alpha_i$ を大きくすると、電流推定誤差をより速く消そうとする。
 
 次に、
 
-$$
+```math
 k_1=\frac{b\alpha}{\alpha^2+\hat{\omega}_m^2}
-$$
+```
 
-$$
+```math
 k_2=\frac{b\hat{\omega}_m}{\alpha^2+\hat{\omega}_m^2}
-$$
+```
 
 を計算する。
 
 この2つの式の分母は同じである。
 
-$$
+```math
 \alpha^2+\hat{\omega}_m^2
-$$
+```
 
 低速では $\hat{\omega}_m$ が小さいため、分母は主に $\alpha^2$ で決まる。高速では $\hat{\omega}_m^2$ が大きくなるため、速度に応じて $k_1,k_2$ の比率が変わる。
 
 標準実装では、
 
-$$
+```math
 b=2\zeta_{\infty}|\hat{\omega}_m|+\alpha
-$$
+```
 
 を使う。高速になるほど $|\hat{\omega}_m|$ が大きくなり、$b$ も大きくなる。これは高速域で磁束推定モードの減衰を確保するためである。
 
@@ -1699,17 +1699,17 @@ $$
 
 ここまでの誤差方程式
 
-$$
+```math
 \dot{\tilde{x}}=(A-HC)\tilde{x}
-$$
+```
 
 は、真値モデルとオブザーバ内部モデルが一致している理想条件で成り立つ。
 
 実際には、抵抗、インダクタンス、電圧、電流に誤差がある。すると、誤差方程式は概念的に以下の形になる。
 
-$$
+```math
 \dot{\tilde{x}}=(A-HC)\tilde{x}+d(t)
-$$
+```
 
 ここで $d(t)$ は、定数誤差、電圧誤差、電流誤差による外乱項である。
 
