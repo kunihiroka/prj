@@ -29,9 +29,9 @@ H \in \mathbb{R}^{4\times 2}
 L_s=L_{ls}+M,\qquad L_r=L_{lr}+M,\qquad D=L_sL_r-M^2
 ```
 
-方式Aの詳細評価は [scripts/run_flux_observer_evaluation.py](scripts/run_flux_observer_evaluation.py) に、3方式の共通評価は [scripts/run_gain_design_comparison.py](scripts/run_gain_design_comparison.py) にまとめている。C言語実装は [c/flux_observer.c](c/flux_observer.c)、[c/flux_observer.h](c/flux_observer.h)、[c/sled23_flux_observer.c](c/sled23_flux_observer.c)、[c/sled23_flux_observer.h](c/sled23_flux_observer.h) に置いた。PDF版は [flux_observer_design_report.pdf](flux_observer_design_report.pdf) に出力する。
+方式Aの詳細評価は [scripts/run_flux_observer_evaluation.py](scripts/run_flux_observer_evaluation.py) に、3方式の共通評価は [scripts/run_gain_design_comparison.py](scripts/run_gain_design_comparison.py) にまとめている。C言語実装は [c/flux_observer.c](c/flux_observer.c)、[c/flux_observer.h](c/flux_observer.h)、[c/sled23_flux_observer.c](c/sled23_flux_observer.c)、[c/sled23_flux_observer.h](c/sled23_flux_observer.h) に置いた。
 
-初学者向けに、式変形とゲイン設計をより丁寧に追った補足資料を [flux_observer_beginner_guide.md](flux_observer_beginner_guide.md) と [flux_observer_beginner_guide.pdf](flux_observer_beginner_guide.pdf) に作成した。
+初学者向けに、式変形とゲイン設計をより丁寧に追った補足資料を [flux_observer_beginner_guide.md](flux_observer_beginner_guide.md) に作成した。
 
 ## 1. 概要
 
@@ -296,9 +296,17 @@ $\omega_o=2200\ \mathrm{rad/s}$ は、電流制御帯域 $\omega_{cc}=1000\ \mat
 
 C APIでは、標準設定として `FluxObserver_SetPolePlacement(&observer, 2200.0f, 2.0f)` を用いる。個別に4個の極を指定したい場合は `FluxObserver_SetObserverPoles()` を使う。
 
-### 3.3 方式B: 文献5.3に基づく alpha/beta 指定方式
+### 3.3 方式B: 文献5.3の alpha/beta 指定を使ったSylvester派生方式
 
-文献5.3の方法の要点は、誘導機のd/q軸対称性を利用し、オブザーバ極の実部と虚部を設計パラメータとして直接指定できる形にすることである。通常の実数状態空間で4個の極を個別に並べるだけでは、d軸とq軸の回転結合をどう扱った設計なのかが見えにくい。これに対し、alpha/beta指定では「減衰」と「回転」を分けて指定する。
+文献5.3の方法の要点は、誘導機のd/q軸対称性を利用し、オブザーバ極の実部と虚部を設計パラメータとして直接指定できる形にすることである。ここで注意すべき点は、文献5.3そのものが本成果物で使うSylvester方程式
+
+```math
+T A_o-F T=G C_o
+```
+
+を解いている、という意味ではないことである。Sylvester方程式は、文献5.3のalpha/beta極指定を、今回の回転dq座標4状態フルオーダ実装へ写すために本成果物側で採用した一般的な極配置の計算法である。
+
+通常の実数状態空間で4個の極を個別に並べるだけでは、d軸とq軸の回転結合をどう扱った設計なのかが見えにくい。これに対し、alpha/beta指定では「減衰」と「回転」を分けて指定する。
 
 ここでは極の実部の大きさを alpha、虚部を beta と呼び、目標極を以下の共役複素極に置く。
 
@@ -350,13 +358,13 @@ F_{\alpha\beta}=
 
 この行列の固有値は $-\alpha+j\beta$ と $-\alpha-j\beta$ であり、同じ共役極を2組持つ。したがって、d/qの回転性を持つ4状態誤差系に対して、文献5.3の alpha/beta 極配置を同一次元フルオーダの枠組みで使える。
 
-ここで重要なのは、方式Bが「論文5.3の最小次元オブザーバをそのまま実装したもの」ではない点である。本成果物では、既存のフルオーダ4状態オブザーバとC APIを維持するため、論文5.3の極指定思想だけを取り込み、目標誤差行列 $F_{\alpha\beta}$ として実装している。つまり方式Bは、以下の対応で理解する。
+ここで重要なのは、方式Bが「論文5.3のオブザーバをそのまま実装したもの」ではない点である。本成果物では、既存のフルオーダ4状態オブザーバとC APIを維持するため、論文5.3の極指定思想だけを取り込み、目標誤差行列 $F_{\alpha\beta}$ として実装している。つまり方式Bは、以下の対応で理解する。
 
 | 文献5.3の考え方 | 本成果物での実装 |
 |---|---|
 | d/q対称性を考慮し、極の実部と虚部を指定する | $F_{\alpha\beta}$ の2個の回転ブロックで表す |
-| オブザーバ利得を極指定値から計算する | Sylvester方程式で $H$ を計算する |
-| 複素数または最小次元表現で見通しよく整理する | 回転dq座標の実数4状態のまま扱い、組込みC APIとの互換性を保つ |
+| オブザーバ利得を極指定値から計算する | 同じ極を持つように、一般の極配置計算としてSylvester方程式で $H$ を計算する |
+| 論文側の整理された座標・表現を使う | 回転dq座標の実数4状態のまま扱い、組込みC APIとの互換性を保つ |
 
 方式Bの設計手順は以下である。
 
@@ -367,7 +375,7 @@ F_{\alpha\beta}=
 5. $H=T^{-1}G_B$ とする。
 6. 得られた $H$ により、誤差方程式 $\dot{\tilde{x}}=(A_o-HC_o)\tilde{x}$ の固有値を $-\alpha\pm j\beta$ の2組へ配置する。
 
-この方式の利点は、方式Aのように4個の実極を個別に並べるより、設計パラメータの意味が読みやすい点である。一方、計算自体は方式Aと同じSylvester方程式であり、オンライン計算負荷は軽くならない。したがって方式Bは、文献5.3の考え方を現在の回転dq座標4状態実装へ接続して比較するための方式であり、計算負荷を下げるための方式ではない。
+この方式の利点は、方式Aのように4個の実極を個別に並べるより、設計パラメータの意味が読みやすい点である。一方、計算自体は方式Aと同じSylvester方程式であり、オンライン計算負荷は軽くならない。したがって方式Bは、文献5.3そのものの再実装ではなく、文献5.3のalpha/beta極指定を現在の回転dq座標4状態実装へ接続して比較するための派生方式である。
 
 この方式を使う場合、C APIでは以下を呼ぶ。
 
@@ -388,7 +396,7 @@ H = observer_H_gain_by_pole_placement(
 )
 ```
 
-注意点として、今回のSylvester方程式の実装では、固定した分配行列 $G$ と同一の実極重複を組み合わせると特異になりやすい。そのため、5.3方式では beta を正の有限値として指定する。非振動の実極を個別に指定したい場合は、方式Aの `FluxObserver_SetObserverPoles()` を使う。
+注意点として、今回のSylvester方程式の実装では、固定した分配行列 $G$ と同一の実極重複を組み合わせると特異になりやすい。そのため、このalpha/beta派生方式では beta を正の有限値として指定する。非振動の実極を個別に指定したい場合は、方式Aの `FluxObserver_SetObserverPoles()` を使う。
 
 ### 3.4 Sylvester方程式による極配置
 
@@ -687,7 +695,7 @@ Appendix A方式の実装手順は以下である。
 | 方式 | 概要 | 主な用途 |
 |---|---|---|
 | 方式A | 回転dq座標の実数4状態モデルに対し、4個の実極を直接指定し、Sylvester方程式で $H$ を求める | オフライン設計、検証基準、ゲインテーブル生成 |
-| 方式B | 文献5.3の alpha/beta 極指定を、回転dq座標4状態の目標行列 $F_{\alpha\beta}$ として扱い、Sylvester方程式で $H$ を求める | 文献5.3の極指定思想の比較、概念検証 |
+| 方式B | 文献5.3の alpha/beta 極指定だけを取り出し、回転dq座標4状態の目標行列 $F_{\alpha\beta}$ として扱ってSylvester方程式で $H$ を求める派生方式 | 文献5.3の極指定思想の比較、概念検証 |
 | 方式C | SLED 2023 Appendix Aに基づき、推定ロータ磁束座標で閉形式の更新式を使う | 組込み実装、オンライン実行 |
 
 結論から言うと、組込み機器に搭載する前提では、方式Cが最も有力である。
@@ -701,11 +709,11 @@ Appendix A方式の実装手順は以下である。
 | 毎周期計算負荷 | 重い。16元連立一次方程式と $T^{-1}G$ が必要 | 重い。方式Aと同じくSylvester方程式を解く | 軽い。閉形式であり、主に四則演算で済む |
 | 組込み実装性 | 毎周期オンライン計算には不向き。オフライン計算またはテーブル化なら可 | 毎周期オンライン計算には不向き。加えて重複極で特異性に注意 | 最も良い。リアルタイム周期内に載せやすい |
 | 既存APIとの整合 | 現在の `FluxObserver` と整合する | 現在の `FluxObserver` と整合する | 状態と座標系が異なるため、別APIとして扱う必要がある |
-| 注意点 | 極倍率の選び方が設計者依存になりやすい | 今回の実装は文献5.3の思想を同一次元の回転dq実数4状態へ写したものであり、完全に同じ構成ではない | 推定ロータ磁束座標への変換、低速センサレス限界、分母 $\hat{\psi}_R-L_{\sigma}\tilde{i}_{sd}$ の扱いに注意 |
+| 注意点 | 極倍率の選び方が設計者依存になりやすい | 今回の実装は文献5.3の思想を同一次元の回転dq実数4状態へ写した派生方式であり、文献5.3そのものがSylvester方程式を解くという意味ではない | 推定ロータ磁束座標への変換、低速センサレス限界、分母 $\hat{\psi}_R-L_{\sigma}\tilde{i}_{sd}$ の扱いに注意 |
 
 方式Aの最大の利点は、回転dq座標の実数4状態モデルに対して「指定した4極が本当に入る」ことを直接確認できる点である。したがって、理論確認、ベンチマーク、あるいはゲインテーブルをオフライン生成する用途には適している。一方で、組込み機器で毎制御周期に実行するには計算負荷が大きい。制御周期が $100\ \mu\mathrm{s}$ 程度の場合、16元連立一次方程式を毎回解く設計は避けたい。
 
-方式Bは、alpha/betaで極を指定できるため、方式Aより設計パラメータの意味は読みやすい。ただし、今回の実装では方式Aと同じSylvester方程式を使っており、計算負荷の問題は解決していない。また、同じ共役極を2組持たせるため、分配行列 $G$ の選定によって $T$ が特異になる。このため、方式Bは最終実装候補というより、文献5.3の極指定思想を現在の回転dq座標4状態オブザーバに接続して比較するための方式と位置付ける。
+方式Bは、alpha/betaで極を指定できるため、方式Aより設計パラメータの意味は読みやすい。ただし、今回の実装では方式Aと同じSylvester方程式を使っており、計算負荷の問題は解決していない。また、同じ共役極を2組持たせるため、分配行列 $G$ の選定によって $T$ が特異になる。このため、方式Bは最終実装候補というより、文献5.3の極指定思想を現在の回転dq座標4状態オブザーバに接続して比較するための独自実装と位置付ける。
 
 方式Cは、状態変数と座標系を変えるため、方式A/Bと完全に同じAPIでは扱えない。しかし、SLED 2023 Appendix Aの式は推定ロータ磁束座標上で整理されており、ゲインが閉形式で計算できる。これは組込み実装上の大きな利点である。特に、毎周期の処理がオブザーバ更新式と簡単な係数計算に限られ、Sylvester方程式を解く必要がない。
 
@@ -982,7 +990,7 @@ FluxObserver_SetObserverPoles(
     -4400.0f);
 ```
 
-文献5.3の alpha/beta 指定方式へ切り替える場合は以下を使う。この関数を呼ぶと `FluxObserver` は5.3方式に切り替わる。再び `FluxObserver_SetPolePlacement()` または `FluxObserver_SetObserverPoles()` を呼ぶと、従来の4実極方式へ戻る。
+文献5.3の alpha/beta 極指定を用いたSylvester派生方式へ切り替える場合は以下を使う。この関数名には互換性のため `Hori53` を残しているが、実装内容は文献5.3そのものではなく、5.3由来のalpha/beta目標極を現在の4状態オブザーバへ入れる方式である。再び `FluxObserver_SetPolePlacement()` または `FluxObserver_SetObserverPoles()` を呼ぶと、従来の4実極方式へ戻る。
 
 ```c
 FluxObserver_SetHori53PolePlacement(

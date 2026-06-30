@@ -86,6 +86,8 @@ void FluxObserver_SetObserverPoles(
     float pole1_rad_s,
     float pole2_rad_s,
     float pole3_rad_s);
+/* Uses Hori 5.3-inspired alpha/beta target poles with this module's
+ * four-state Sylvester pole-placement implementation. */
 void FluxObserver_SetHori53PolePlacement(
     FluxObserver *observer,
     float alpha_rad_s,

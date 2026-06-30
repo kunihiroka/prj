@@ -186,9 +186,10 @@ def observer_target_matrix(
     """Return the target error-dynamics matrix F.
 
     ``four_pole`` is the previous design and keeps four independently
-    specified real poles. ``hori_5_3`` uses the alpha/beta pole pair form in
-    section 5.3 of the Hori paper, represented as two real 2x2 blocks so that
-    the observer remains the same real four-state full-order observer.
+    specified real poles. ``hori_5_3`` is not a literal implementation of
+    section 5.3 of the Hori paper; it reuses the alpha/beta pole-pair idea and
+    represents it as two real 2x2 blocks so that the observer remains the same
+    real four-state full-order observer.
     """
     if gain_design == GAIN_DESIGN_FOUR_POLE:
         return np.diag(desired_observer_poles(observer_bandwidth, pole_ratios))
@@ -242,7 +243,7 @@ def observer_H_gain_by_pole_placement(
     If T is nonsingular, A - H*C is similar to F and therefore has the
     requested target poles. The default F is the previous four-real-pole
     design. The optional ``hori_5_3`` F keeps the same full-order observer but
-    uses section 5.3 alpha/beta pole blocks.
+    uses alpha/beta pole blocks inspired by section 5.3 of the Hori paper.
     """
     a, _, c = state_matrix(params, omega_r, omega_k)
     f = observer_target_matrix(
