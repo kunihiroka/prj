@@ -262,6 +262,11 @@ FluxObserverStatus Sled23FluxObserver_Step(
     denominator = sled_clamp_denominator(
         observer->psi_r_hat_wb - d.l_sigma_h * eisd,
         observer->min_denominator_wb);
+    /*
+     * omega_s is not an externally supplied slip estimate. It is the algebraic
+     * condition that keeps the estimated rotor-flux q-axis component at zero:
+     * d(psi_Rq_hat)/dt = 0 in the estimated rotor-flux reference frame.
+     */
     omega_s = omega_m_e +
         (d.rr_inv_gamma_ohm * input->isq_a +
          k2 * observer->alpha_i_rad_s * d.l_sigma_h * eisd -
