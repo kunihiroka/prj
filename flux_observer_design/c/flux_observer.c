@@ -234,6 +234,72 @@ static void fo_build_state_matrices(
     C[1][3] = d->cs1;
 }
 
+static FluxObserverStatus fo_build_target_matrix(const FluxObserver *observer, float F[4][4])
+{
+    unsigned int i;
+
+    if ((observer == NULL) || (F == NULL)) {
+        return FLUX_OBSERVER_ERR_NULL;
+    }
+
+    memset(F, 0, 16u * sizeof(float));
+    if (observer->gain_design == FLUX_OBSERVER_GAIN_FOUR_POLE) {
+        for (i = 0u; i < FLUX_OBSERVER_POLE_COUNT; ++i) {
+            if (!fo_is_valid_observer_pole(observer->observer_poles_rad_s[i])) {
+                return FLUX_OBSERVER_ERR_PARAM;
+            }
+            F[i][i] = observer->observer_poles_rad_s[i];
+        }
+        return FLUX_OBSERVER_OK;
+    }
+
+    if (observer->gain_design == FLUX_OBSERVER_GAIN_HORI_5_3) {
+        float alpha = observer->hori_alpha_rad_s;
+        float beta = observer->hori_beta_rad_s;
+        if (!fo_is_finite_positive(alpha) || !fo_is_finite_positive(beta)) {
+            return FLUX_OBSERVER_ERR_PARAM;
+        }
+
+        F[0][0] = -alpha;
+        F[0][1] = -beta;
+        F[1][0] = beta;
+        F[1][1] = -alpha;
+        F[2][2] = -alpha;
+        F[2][3] = -beta;
+        F[3][2] = beta;
+        F[3][3] = -alpha;
+        return FLUX_OBSERVER_OK;
+    }
+
+    return FLUX_OBSERVER_ERR_PARAM;
+}
+
+static FluxObserverStatus fo_build_distribution_matrix(const FluxObserver *observer, float G[4][2])
+{
+    if ((observer == NULL) || (G == NULL)) {
+        return FLUX_OBSERVER_ERR_NULL;
+    }
+
+    memset(G, 0, 8u * sizeof(float));
+    if (observer->gain_design == FLUX_OBSERVER_GAIN_FOUR_POLE) {
+        G[0][0] = 1.0f;
+        G[1][1] = 1.0f;
+        G[2][0] = 1.0f;
+        G[3][1] = 1.0f;
+        return FLUX_OBSERVER_OK;
+    }
+
+    if (observer->gain_design == FLUX_OBSERVER_GAIN_HORI_5_3) {
+        G[0][0] = 1.0f;
+        G[1][1] = 1.0f;
+        G[2][1] = 1.0f;
+        G[3][0] = 1.0f;
+        return FLUX_OBSERVER_OK;
+    }
+
+    return FLUX_OBSERVER_ERR_PARAM;
+}
+
 static FluxObserverStatus fo_observer_H(
     const FluxObserver *observer,
     const FluxObserverMotorConfig *cfg,
@@ -244,12 +310,8 @@ static FluxObserverStatus fo_observer_H(
 {
     float A[4][4];
     float C[2][4];
-    const float G[4][2] = {
-        {1.0f, 0.0f},
-        {0.0f, 1.0f},
-        {1.0f, 0.0f},
-        {0.0f, 1.0f}
-    };
+    float F[4][4];
+    float G[4][2];
     float rhs[4][4];
     float aug16[16][17];
     float t_vec[16];
@@ -262,10 +324,13 @@ static FluxObserverStatus fo_observer_H(
     if ((observer == NULL) || (cfg == NULL) || (d == NULL) || (H == NULL)) {
         return FLUX_OBSERVER_ERR_NULL;
     }
-    for (i = 0u; i < FLUX_OBSERVER_POLE_COUNT; ++i) {
-        if (!fo_is_valid_observer_pole(observer->observer_poles_rad_s[i])) {
-            return FLUX_OBSERVER_ERR_PARAM;
-        }
+    status = fo_build_target_matrix(observer, F);
+    if (status != FLUX_OBSERVER_OK) {
+        return status;
+    }
+    status = fo_build_distribution_matrix(observer, G);
+    if (status != FLUX_OBSERVER_OK) {
+        return status;
     }
 
     fo_build_state_matrices(cfg, d, omega_r_rad_s, omega_k_rad_s, A, C);
@@ -284,7 +349,10 @@ static FluxObserverStatus fo_observer_H(
                 unsigned int unknown = i + 4u * k;
                 aug16[eq][unknown] += A[k][j];
             }
-            aug16[eq][i + 4u * j] -= observer->observer_poles_rad_s[i];
+            for (k = 0u; k < 4u; ++k) {
+                unsigned int unknown = k + 4u * j;
+                aug16[eq][unknown] -= F[i][k];
+            }
             aug16[eq][16] = rhs[i][j];
         }
     }
@@ -342,6 +410,7 @@ void FluxObserver_SetPolePlacement(FluxObserver *observer, float bandwidth_rad_s
     if (!fo_is_finite_positive(fastest_ratio) || (fastest_ratio <= 1.55f)) {
         fastest_ratio = 2.0f;
     }
+    observer->gain_design = FLUX_OBSERVER_GAIN_FOUR_POLE;
     observer->observer_poles_rad_s[0] = -bandwidth_rad_s;
     observer->observer_poles_rad_s[1] = -1.25f * bandwidth_rad_s;
     observer->observer_poles_rad_s[2] = -1.55f * bandwidth_rad_s;
@@ -368,6 +437,23 @@ void FluxObserver_SetObserverPoles(
     observer->observer_poles_rad_s[1] = pole1_rad_s;
     observer->observer_poles_rad_s[2] = pole2_rad_s;
     observer->observer_poles_rad_s[3] = pole3_rad_s;
+    observer->gain_design = FLUX_OBSERVER_GAIN_FOUR_POLE;
+}
+
+void FluxObserver_SetHori53PolePlacement(
+    FluxObserver *observer,
+    float alpha_rad_s,
+    float beta_rad_s)
+{
+    if (observer == NULL) {
+        return;
+    }
+    if (!fo_is_finite_positive(alpha_rad_s) || !fo_is_finite_positive(beta_rad_s)) {
+        return;
+    }
+    observer->hori_alpha_rad_s = alpha_rad_s;
+    observer->hori_beta_rad_s = beta_rad_s;
+    observer->gain_design = FLUX_OBSERVER_GAIN_HORI_5_3;
 }
 
 FluxObserverStatus FluxObserver_ResetFlux(

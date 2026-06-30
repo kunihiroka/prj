@@ -19,6 +19,11 @@ typedef enum FluxObserverStatus {
     FLUX_OBSERVER_ERR_SINGULAR = -4
 } FluxObserverStatus;
 
+typedef enum FluxObserverGainDesign {
+    FLUX_OBSERVER_GAIN_FOUR_POLE = 0,
+    FLUX_OBSERVER_GAIN_HORI_5_3 = 1
+} FluxObserverGainDesign;
+
 typedef struct FluxObserverMotorConfig {
     float rs_ohm;
     float rr_ohm;
@@ -66,6 +71,9 @@ typedef struct FluxObserver {
     float psi_rd_wb;
     float psi_rq_wb;
     float observer_poles_rad_s[FLUX_OBSERVER_POLE_COUNT];
+    FluxObserverGainDesign gain_design;
+    float hori_alpha_rad_s;
+    float hori_beta_rad_s;
     FluxObserverMotorConfig last_config;
     float H[FLUX_OBSERVER_H_ROWS][FLUX_OBSERVER_H_COLS];
 } FluxObserver;
@@ -78,6 +86,10 @@ void FluxObserver_SetObserverPoles(
     float pole1_rad_s,
     float pole2_rad_s,
     float pole3_rad_s);
+void FluxObserver_SetHori53PolePlacement(
+    FluxObserver *observer,
+    float alpha_rad_s,
+    float beta_rad_s);
 FluxObserverStatus FluxObserver_ResetFlux(
     FluxObserver *observer,
     float psi_sd_wb,

@@ -10,6 +10,8 @@ $$
 
 として設計する。したがって、4状態に対応する4個のオブザーバ極をすべて明示的に配置する。
 
+実装ではゲイン設計方式を切り替え可能にした。標準は前版と同じ「4個の実極を直接指定する方式」である。追加方式として、文献5.3の極配置思想に合わせ、極の実部を $\alpha$、虚部を $\beta$ として指定する方式を用意した。どちらの方式でも、オブザーバ状態は一次磁束・二次磁束の4状態のままであり、出力誤差から一般の実数 $H$ を計算する。
+
 使用した誘導機定数は以下である。
 
 | 記号 | 値 | 説明 |
@@ -249,7 +251,7 @@ $$
 
 の4個を指定する。
 
-### 3.2 今回の目標極
+### 3.2 方式A: 4実極を直接指定する従来方式
 
 今回の基準設計では、観測帯域を
 
@@ -290,18 +292,63 @@ $\omega_o=2200\ \mathrm{rad/s}$ は、電流制御帯域 $\omega_{cc}=1000\ \mat
 
 C APIでは、標準設定として `FluxObserver_SetPolePlacement(&observer, 2200.0f, 2.0f)` を用いる。個別に4個の極を指定したい場合は `FluxObserver_SetObserverPoles()` を使う。
 
-### 3.3 Sylvester方程式による4極配置
+### 3.3 方式B: 文献5.3に基づく alpha/beta 指定方式
+
+文献5.3の方法は、オブザーバ極の実部と虚部を設計パラメータとして扱う。ここでは極の実部の大きさを alpha、虚部を beta と呼び、目標極を以下の共役複素極に置く。
+
+$$
+p=-\alpha \pm j\beta
+$$
+
+本成果物では、最小次元化や複素ゲイン表現へは移行しない。状態変数を一次磁束・二次磁束の4状態に固定したまま、文献5.3の alpha/beta 指定を、実数4状態の目標誤差行列として以下のように与える。
+
+$$
+F_{\alpha\beta}=
+\begin{bmatrix}
+-\alpha & -\beta & 0 & 0\\
+\beta & -\alpha & 0 & 0\\
+0 & 0 & -\alpha & -\beta\\
+0 & 0 & \beta & -\alpha
+\end{bmatrix}
+$$
+
+この行列の固有値は $-\alpha+j\beta$ と $-\alpha-j\beta$ であり、同じ共役極を2組持つ。したがって、d/qの回転性を持つ4状態誤差系に対して、文献5.3の alpha/beta 極配置を同一次元フルオーダの枠組みで使える。
+
+この方式を使う場合、C APIでは以下を呼ぶ。
+
+```c
+FluxObserver_SetHori53PolePlacement(&observer, alpha_rad_s, beta_rad_s);
+```
+
+Pythonでは以下のように指定する。
+
+```python
+H = observer_H_gain_by_pole_placement(
+    params,
+    omega_r,
+    omega_k,
+    gain_design=GAIN_DESIGN_HORI_5_3,
+    hori_alpha=alpha_rad_s,
+    hori_beta=beta_rad_s,
+)
+```
+
+注意点として、今回のSylvester方程式の実装では、固定した分配行列 $G$ と同一の実極重複を組み合わせると特異になりやすい。そのため、5.3方式では beta を正の有限値として指定する。非振動の実極を個別に指定したい場合は、方式Aの `FluxObserver_SetObserverPoles()` を使う。
+
+### 3.4 Sylvester方程式による極配置
 
 今回の実装は、実4状態の行列 $A_o,C_o$ をそのまま使う。目標誤差ダイナミクスを以下で定義する。
 
 $$
-F=\mathrm{diag}(p_1,p_2,p_3,p_4)
+F=F_{\mathrm{target}}
 $$
 
-出力誤差を4状態へ配分する行列を以下とする。
+方式Aでは $F_{\mathrm{target}}=\mathrm{diag}(p_1,p_2,p_3,p_4)$ であり、方式Bでは $F_{\mathrm{target}}=F_{\alpha\beta}$ である。
+
+出力誤差を4状態へ配分する行列を $G$ とする。方式Aでは前版と同じ以下を使う。
 
 $$
-G=
+G_A=
 \begin{bmatrix}
 1 & 0\\
 0 & 1\\
@@ -310,7 +357,19 @@ G=
 \end{bmatrix}
 $$
 
-この $G$ は設計上の計算行列であり、物理量を直接意味するものではない。各状態が少なくとも一方の電流誤差信号から補正を受けるように選んでいる。
+方式Bでは以下を使う。
+
+$$
+G_B=
+\begin{bmatrix}
+1 & 0\\
+0 & 1\\
+0 & 1\\
+1 & 0
+\end{bmatrix}
+$$
+
+この $G$ は設計上の計算行列であり、物理量を直接意味するものではない。方式Aの $G_A$ は前版との互換性を保つために残した。方式Bでは $F_{\alpha\beta}$ が同じ共役極を2組持つため、方式Aと同じ $G_A$ を使うとSylvester方程式の解 $T$ が特異になる。そこで、ロータ磁束側の配分をd/qで入れ替えた $G_B$ を用い、重複共役極に対して $T$ が正則になる組にしている。
 
 次のSylvester方程式を解く。
 
@@ -582,6 +641,15 @@ FluxObserver_SetObserverPoles(
     -2750.0f,
     -3410.0f,
     -4400.0f);
+```
+
+文献5.3の alpha/beta 指定方式へ切り替える場合は以下を使う。この関数を呼ぶと `FluxObserver` は5.3方式に切り替わる。再び `FluxObserver_SetPolePlacement()` または `FluxObserver_SetObserverPoles()` を呼ぶと、従来の4実極方式へ戻る。
+
+```c
+FluxObserver_SetHori53PolePlacement(
+    &observer,
+    alpha_rad_s,  /* target real-part magnitude [rad/s] */
+    beta_rad_s);  /* target imaginary part [rad/s] */
 ```
 
 制御周期ごとの呼び出しは以下である。

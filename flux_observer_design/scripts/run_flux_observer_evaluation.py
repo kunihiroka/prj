@@ -24,6 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "figures"
 DATA_DIR = ROOT / "data"
 
+GAIN_DESIGN_FOUR_POLE = "four_pole"
+GAIN_DESIGN_HORI_5_3 = "hori_5_3"
+
 
 @dataclass(frozen=True)
 class MotorParams:
@@ -142,8 +145,18 @@ def state_matrix(params: MotorParams, omega_r: float, omega_k: float) -> tuple[n
     return a, b, c_s
 
 
-def observer_distribution_matrix() -> np.ndarray:
+def observer_distribution_matrix(gain_design: str = GAIN_DESIGN_FOUR_POLE) -> np.ndarray:
     """Return the fixed output-error distribution matrix used in the Sylvester design."""
+    if gain_design == GAIN_DESIGN_HORI_5_3:
+        return np.array(
+            [
+                [1.0, 0.0],
+                [0.0, 1.0],
+                [0.0, 1.0],
+                [1.0, 0.0],
+            ],
+            dtype=float,
+        )
     return np.array(
         [
             [1.0, 0.0],
@@ -163,18 +176,62 @@ def desired_observer_poles(
     return -observer_bandwidth * np.array(pole_ratios, dtype=float)
 
 
+def observer_target_matrix(
+    gain_design: str = GAIN_DESIGN_FOUR_POLE,
+    observer_bandwidth: float = 2200.0,
+    pole_ratios: tuple[float, float, float, float] = (1.0, 1.25, 1.55, 2.0),
+    hori_alpha: float | None = None,
+    hori_beta: float | None = None,
+) -> np.ndarray:
+    """Return the target error-dynamics matrix F.
+
+    ``four_pole`` is the previous design and keeps four independently
+    specified real poles. ``hori_5_3`` uses the alpha/beta pole pair form in
+    section 5.3 of the Hori paper, represented as two real 2x2 blocks so that
+    the observer remains the same real four-state full-order observer.
+    """
+    if gain_design == GAIN_DESIGN_FOUR_POLE:
+        return np.diag(desired_observer_poles(observer_bandwidth, pole_ratios))
+
+    if gain_design == GAIN_DESIGN_HORI_5_3:
+        alpha = observer_bandwidth if hori_alpha is None else float(hori_alpha)
+        if hori_beta is None:
+            raise ValueError("hori_beta must be specified for hori_5_3 gain design")
+        beta = float(hori_beta)
+        if not math.isfinite(alpha) or alpha <= 0.0 or not math.isfinite(beta) or beta <= 0.0:
+            raise ValueError("hori_5_3 requires positive finite alpha and beta")
+        return np.array(
+            [
+                [-alpha, -beta, 0.0, 0.0],
+                [beta, -alpha, 0.0, 0.0],
+                [0.0, 0.0, -alpha, -beta],
+                [0.0, 0.0, beta, -alpha],
+            ],
+            dtype=float,
+        )
+
+    raise ValueError(f"unknown observer gain design: {gain_design}")
+
+
+def observer_target_poles(target_matrix: np.ndarray) -> np.ndarray:
+    return np.linalg.eigvals(target_matrix)
+
+
 def observer_H_gain_by_pole_placement(
     params: MotorParams,
     omega_r: float,
     omega_k: float,
     observer_bandwidth: float = 2200.0,
     pole_ratios: tuple[float, float, float, float] = (1.0, 1.25, 1.55, 2.0),
+    gain_design: str = GAIN_DESIGN_FOUR_POLE,
+    hori_alpha: float | None = None,
+    hori_beta: float | None = None,
 ) -> np.ndarray:
-    """Return the real 4x2 observer gain H by full four-pole placement.
+    """Return the real 4x2 observer gain H by full-order pole placement.
 
     The design uses the real 4-state matrices A and C directly. The target
-    error dynamics are F = diag(poles). With a fixed 4x2 distribution matrix G,
-    solve the standard observer Sylvester equation
+    error dynamics are F. With a fixed 4x2 distribution matrix G, solve the
+    standard observer Sylvester equation
 
         T*A - F*T = G*C
 
@@ -182,13 +239,20 @@ def observer_H_gain_by_pole_placement(
 
         H = inv(T)*G.
 
-    If T is nonsingular, A - H*C is similar to F and therefore has all four
-    requested poles.
+    If T is nonsingular, A - H*C is similar to F and therefore has the
+    requested target poles. The default F is the previous four-real-pole
+    design. The optional ``hori_5_3`` F keeps the same full-order observer but
+    uses section 5.3 alpha/beta pole blocks.
     """
     a, _, c = state_matrix(params, omega_r, omega_k)
-    poles = desired_observer_poles(observer_bandwidth, pole_ratios)
-    f = np.diag(poles)
-    g = observer_distribution_matrix()
+    f = observer_target_matrix(
+        gain_design=gain_design,
+        observer_bandwidth=observer_bandwidth,
+        pole_ratios=pole_ratios,
+        hori_alpha=hori_alpha,
+        hori_beta=hori_beta,
+    )
+    g = observer_distribution_matrix(gain_design)
     n = a.shape[0]
 
     sylvester_matrix = np.kron(a.T, np.eye(n)) - np.kron(np.eye(n), f)
@@ -268,6 +332,9 @@ def simulate_case(
     dt: float = 1.0e-5,
     t_end: float = 0.12,
     seed: int = 1,
+    gain_design: str = GAIN_DESIGN_FOUR_POLE,
+    hori_alpha: float | None = None,
+    hori_beta: float | None = None,
 ) -> SimResult:
     obs_params = apply_param_scale(true_params, case.param_scale)
     ss = steady_operating_point(true_params, op)
@@ -277,7 +344,14 @@ def simulate_case(
 
     a_true, b_true, _ = state_matrix(true_params, omega_r, omega_k)
     a_obs, b_obs, c_obs = state_matrix(obs_params, omega_r, omega_k)
-    H = observer_H_gain_by_pole_placement(obs_params, omega_r, omega_k)
+    H = observer_H_gain_by_pole_placement(
+        obs_params,
+        omega_r,
+        omega_k,
+        gain_design=gain_design,
+        hori_alpha=hori_alpha,
+        hori_beta=hori_beta,
+    )
     placed_poles = np.linalg.eigvals(a_obs - H @ c_obs)
 
     n = int(round(t_end / dt)) + 1
