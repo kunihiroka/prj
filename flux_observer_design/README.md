@@ -31,6 +31,8 @@ $$
 
 方式Aの詳細評価は [scripts/run_flux_observer_evaluation.py](scripts/run_flux_observer_evaluation.py) に、3方式の共通評価は [scripts/run_gain_design_comparison.py](scripts/run_gain_design_comparison.py) にまとめている。C言語実装は [c/flux_observer.c](c/flux_observer.c)、[c/flux_observer.h](c/flux_observer.h)、[c/sled23_flux_observer.c](c/sled23_flux_observer.c)、[c/sled23_flux_observer.h](c/sled23_flux_observer.h) に置いた。PDF版は [flux_observer_design_report.pdf](flux_observer_design_report.pdf) に出力する。
 
+初学者向けに、式変形とゲイン設計をより丁寧に追った補足資料を [flux_observer_beginner_guide.md](flux_observer_beginner_guide.md) と [flux_observer_beginner_guide.pdf](flux_observer_beginner_guide.pdf) に作成した。
+
 ## 1. 概要
 
 目的は、一次電圧、一次電流、ロータ機械角速度、および滑り角周波数から、回転dq座標上の一次磁束と二次磁束を推定することである。
