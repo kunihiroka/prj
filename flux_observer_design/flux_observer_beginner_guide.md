@@ -757,6 +757,169 @@ $$
 
 は4行4列になり、4個の固有値を持つ。
 
+ここで、誘導機の回転dq座標4状態モデルについて、$A-HC$ を実際に展開しておく。状態は、
+
+$$
+x=
+\begin{bmatrix}
+\psi_{sd} & \psi_{sq} & \psi_{rd} & \psi_{rq}
+\end{bmatrix}^{T}
+$$
+
+である。出力は一次電流
+
+$$
+y=
+\begin{bmatrix}
+i_{sd} & i_{sq}
+\end{bmatrix}^{T}
+=Cx
+$$
+
+であり、
+
+$$
+C=
+\begin{bmatrix}
+\frac{L_r}{D} & 0 & -\frac{M}{D} & 0\\
+0 & \frac{L_r}{D} & 0 & -\frac{M}{D}
+\end{bmatrix}
+$$
+
+である。オブザーバゲインを、
+
+$$
+H=
+\begin{bmatrix}
+h_{11} & h_{12}\\
+h_{21} & h_{22}\\
+h_{31} & h_{32}\\
+h_{41} & h_{42}
+\end{bmatrix}
+$$
+
+と置く。まず $HC$ を計算する。$H$ は4行2列、$C$ は2行4列なので、
+
+$$
+HC=
+\begin{bmatrix}
+h_{11} & h_{12}\\
+h_{21} & h_{22}\\
+h_{31} & h_{32}\\
+h_{41} & h_{42}
+\end{bmatrix}
+\begin{bmatrix}
+\frac{L_r}{D} & 0 & -\frac{M}{D} & 0\\
+0 & \frac{L_r}{D} & 0 & -\frac{M}{D}
+\end{bmatrix}
+$$
+
+である。1行目を例にすると、
+
+$$
+\begin{bmatrix}
+h_{11} & h_{12}
+\end{bmatrix}
+\begin{bmatrix}
+\frac{L_r}{D} & 0 & -\frac{M}{D} & 0\\
+0 & \frac{L_r}{D} & 0 & -\frac{M}{D}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\frac{L_r}{D}h_{11} &
+\frac{L_r}{D}h_{12} &
+-\frac{M}{D}h_{11} &
+-\frac{M}{D}h_{12}
+\end{bmatrix}
+$$
+
+となる。同じ計算を4行分行うと、
+
+$$
+HC=
+\begin{bmatrix}
+\frac{L_r}{D}h_{11} & \frac{L_r}{D}h_{12} & -\frac{M}{D}h_{11} & -\frac{M}{D}h_{12}\\
+\frac{L_r}{D}h_{21} & \frac{L_r}{D}h_{22} & -\frac{M}{D}h_{21} & -\frac{M}{D}h_{22}\\
+\frac{L_r}{D}h_{31} & \frac{L_r}{D}h_{32} & -\frac{M}{D}h_{31} & -\frac{M}{D}h_{32}\\
+\frac{L_r}{D}h_{41} & \frac{L_r}{D}h_{42} & -\frac{M}{D}h_{41} & -\frac{M}{D}h_{42}
+\end{bmatrix}
+$$
+
+である。
+
+一方、誘導機の $A$ は、
+
+$$
+A=
+\begin{bmatrix}
+-\frac{R_sL_r}{D} & \omega_k & \frac{R_sM}{D} & 0\\
+-\omega_k & -\frac{R_sL_r}{D} & 0 & \frac{R_sM}{D}\\
+\frac{R_rM}{D} & 0 & -\frac{R_rL_s}{D} & \omega_{\mathrm{slip}}\\
+0 & \frac{R_rM}{D} & -\omega_{\mathrm{slip}} & -\frac{R_rL_s}{D}
+\end{bmatrix}
+$$
+
+である。ここで、
+
+$$
+\omega_{\mathrm{slip}}=\omega_k-\omega_r
+$$
+
+であり、
+
+$$
+\omega_r=p\omega_m
+$$
+
+である。
+
+したがって、$A-HC$ は $A$ の各要素から $HC$ の対応する要素を引けばよい。
+
+$$
+A-HC=
+\begin{bmatrix}
+-\frac{R_sL_r}{D}-\frac{L_r}{D}h_{11}
+&
+\omega_k-\frac{L_r}{D}h_{12}
+&
+\frac{R_sM}{D}+\frac{M}{D}h_{11}
+&
+\frac{M}{D}h_{12}
+\\
+-\omega_k-\frac{L_r}{D}h_{21}
+&
+-\frac{R_sL_r}{D}-\frac{L_r}{D}h_{22}
+&
+\frac{M}{D}h_{21}
+&
+\frac{R_sM}{D}+\frac{M}{D}h_{22}
+\\
+\frac{R_rM}{D}-\frac{L_r}{D}h_{31}
+&
+-\frac{L_r}{D}h_{32}
+&
+-\frac{R_rL_s}{D}+\frac{M}{D}h_{31}
+&
+\omega_{\mathrm{slip}}+\frac{M}{D}h_{32}
+\\
+-\frac{L_r}{D}h_{41}
+&
+\frac{R_rM}{D}-\frac{L_r}{D}h_{42}
+&
+-\omega_{\mathrm{slip}}+\frac{M}{D}h_{41}
+&
+-\frac{R_rL_s}{D}+\frac{M}{D}h_{42}
+\end{bmatrix}
+$$
+
+この4行4列行列の特性方程式
+
+$$
+\det\{sI-(A-HC)\}=0
+$$
+
+の根が、誘導機磁束オブザーバの極である。つまり、ゲイン $H$ を変えると上の行列の各要素が変わり、その結果として特性方程式の根、すなわちオブザーバ極が動く。
+
 ## 9. Sylvester方程式によるHの求め方
 
 方式A/Bでは、直接 $H$ を手計算で求めるのではなく、Sylvester方程式を使う。ここでは、その式がどこから来るかを丁寧に導く。
