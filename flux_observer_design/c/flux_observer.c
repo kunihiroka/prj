@@ -389,6 +389,138 @@ static FluxObserverStatus fo_observer_H(
     return FLUX_OBSERVER_OK;
 }
 
+static FluxObserverStatus fo_hori53_gain(
+    const FluxObserver *observer,
+    const FluxObserverMotorConfig *cfg,
+    const FoDerived *d,
+    float omega_k_rad_s,
+    float omega_ref_relative_rad_s,
+    float *k1,
+    float *k2)
+{
+    float alpha;
+    float beta;
+    float a;
+    float c_inv;
+    float q;
+    float den;
+    float r1;
+    float r2;
+
+    if ((observer == NULL) || (cfg == NULL) || (d == NULL) || (k1 == NULL) || (k2 == NULL)) {
+        return FLUX_OBSERVER_ERR_NULL;
+    }
+    alpha = observer->hori_alpha_rad_s;
+    beta = observer->hori_beta_rad_s;
+    if (!fo_is_finite_positive(alpha) || !fo_is_finite_positive(beta)) {
+        return FLUX_OBSERVER_ERR_PARAM;
+    }
+
+    a = cfg->rr_ohm / d->lr_h;
+    c_inv = d->lr_h / cfg->lm_h;
+    q = beta + omega_k_rad_s;
+    den = alpha * alpha + q * q;
+    if (!fo_is_finite_positive(den)) {
+        return FLUX_OBSERVER_ERR_PARAM;
+    }
+
+    r1 = c_inv * (alpha - a);
+    r2 = c_inv * (beta - omega_ref_relative_rad_s);
+    *k1 = (alpha * r1 + q * r2) / den;
+    *k2 = (q * r1 - alpha * r2) / den;
+    if (!isfinite(*k1) || !isfinite(*k2)) {
+        return FLUX_OBSERVER_ERR_PARAM;
+    }
+    return FLUX_OBSERVER_OK;
+}
+
+static FluxObserverStatus fo_hori53_rotor_flux_derivative(
+    const FluxObserver *observer,
+    const FluxObserverMotorConfig *cfg,
+    const FoDerived *d,
+    float omega_k_rad_s,
+    float omega_ref_relative_rad_s,
+    float isd,
+    float isq,
+    float disd,
+    float disq,
+    float vsd,
+    float vsq,
+    float *dpsi_rd,
+    float *dpsi_rq,
+    float *k1_out,
+    float *k2_out)
+{
+    float k1;
+    float k2;
+    float a;
+    float sigma_ls;
+    float kid;
+    float kiq;
+    float kdid;
+    float kdiq;
+    float kvd;
+    float kvq;
+    float kji_d;
+    float kji_q;
+    float kjpsi_d;
+    float kjpsi_q;
+    float rhs_d;
+    float rhs_q;
+    float lhs_a;
+    float lhs_b;
+    float lhs_den;
+    FluxObserverStatus status;
+
+    status = fo_hori53_gain(observer, cfg, d, omega_k_rad_s, omega_ref_relative_rad_s, &k1, &k2);
+    if (status != FLUX_OBSERVER_OK) {
+        return status;
+    }
+
+    a = cfg->rr_ohm / d->lr_h;
+    sigma_ls = d->det_l / d->lr_h;
+
+    kid = k1 * isd - k2 * isq;
+    kiq = k2 * isd + k1 * isq;
+    kdid = k1 * disd - k2 * disq;
+    kdiq = k2 * disd + k1 * disq;
+    kvd = k1 * vsd - k2 * vsq;
+    kvq = k2 * vsd + k1 * vsq;
+    kji_d = k1 * (-isq) - k2 * isd;
+    kji_q = k2 * (-isq) + k1 * isd;
+    kjpsi_d = k1 * (-observer->psi_rq_wb) - k2 * observer->psi_rd_wb;
+    kjpsi_q = k2 * (-observer->psi_rq_wb) + k1 * observer->psi_rd_wb;
+
+    rhs_d = -a * observer->psi_rd_wb - omega_ref_relative_rad_s * observer->psi_rq_wb;
+    rhs_q = omega_ref_relative_rad_s * observer->psi_rd_wb - a * observer->psi_rq_wb;
+    rhs_d += cfg->lm_h * a * isd + cfg->rs_ohm * kid + sigma_ls * kdid - kvd;
+    rhs_q += cfg->lm_h * a * isq + cfg->rs_ohm * kiq + sigma_ls * kdiq - kvq;
+    rhs_d += sigma_ls * omega_k_rad_s * kji_d +
+        (cfg->lm_h / d->lr_h) * omega_k_rad_s * kjpsi_d;
+    rhs_q += sigma_ls * omega_k_rad_s * kji_q +
+        (cfg->lm_h / d->lr_h) * omega_k_rad_s * kjpsi_q;
+
+    lhs_a = 1.0f - (cfg->lm_h / d->lr_h) * k1;
+    lhs_b = (cfg->lm_h / d->lr_h) * k2;
+    lhs_den = lhs_a * lhs_a + lhs_b * lhs_b;
+    if (!fo_is_finite_positive(lhs_den)) {
+        return FLUX_OBSERVER_ERR_SINGULAR;
+    }
+
+    *dpsi_rd = (lhs_a * rhs_d - lhs_b * rhs_q) / lhs_den;
+    *dpsi_rq = (lhs_b * rhs_d + lhs_a * rhs_q) / lhs_den;
+    if (!isfinite(*dpsi_rd) || !isfinite(*dpsi_rq)) {
+        return FLUX_OBSERVER_ERR_SINGULAR;
+    }
+    if (k1_out != NULL) {
+        *k1_out = k1;
+    }
+    if (k2_out != NULL) {
+        *k2_out = k2;
+    }
+    return FLUX_OBSERVER_OK;
+}
+
 void FluxObserver_Init(FluxObserver *observer, FluxObserverApi api)
 {
     if (observer == NULL) {
@@ -470,6 +602,7 @@ FluxObserverStatus FluxObserver_ResetFlux(
     observer->psi_sq_wb = psi_sq_wb;
     observer->psi_rd_wb = psi_rd_wb;
     observer->psi_rq_wb = psi_rq_wb;
+    observer->has_last_current = 0u;
     return FLUX_OBSERVER_OK;
 }
 
@@ -498,6 +631,9 @@ FluxObserverStatus FluxObserver_ResetFromCurrents(
     observer->psi_sq_wb = d.ls_h * isq_a + cfg.lm_h * irq_a;
     observer->psi_rd_wb = cfg.lm_h * isd_a + d.lr_h * ird_a;
     observer->psi_rq_wb = cfg.lm_h * isq_a + d.lr_h * irq_a;
+    observer->last_isd_a = isd_a;
+    observer->last_isq_a = isq_a;
+    observer->has_last_current = 1u;
     return FLUX_OBSERVER_OK;
 }
 
@@ -521,6 +657,10 @@ FluxObserverStatus FluxObserver_Step(
     float omega_r;
     float omega_k;
     float omega_slip;
+    float disd;
+    float disq;
+    float k1;
+    float k2;
     FluxObserverStatus status;
 
     if ((observer == NULL) || (input == NULL)) {
@@ -540,11 +680,91 @@ FluxObserverStatus FluxObserver_Step(
     omega_k = omega_r + input->omega_slip_rad_s;
     omega_slip = omega_k - omega_r;
 
+    observer->last_config = cfg;
+
+    if (observer->gain_design == FLUX_OBSERVER_GAIN_HORI_5_3) {
+        if (observer->has_last_current != 0u) {
+            disd = (input->isd_a - observer->last_isd_a) / cfg.control_period_s;
+            disq = (input->isq_a - observer->last_isq_a) / cfg.control_period_s;
+        } else {
+            disd = 0.0f;
+            disq = 0.0f;
+        }
+
+        status = fo_hori53_rotor_flux_derivative(
+            observer,
+            &cfg,
+            &d,
+            omega_k,
+            omega_r - omega_k,
+            input->isd_a,
+            input->isq_a,
+            disd,
+            disq,
+            input->vsd_v,
+            input->vsq_v,
+            &dx_rd,
+            &dx_rq,
+            &k1,
+            &k2);
+        if (status != FLUX_OBSERVER_OK) {
+            return status;
+        }
+
+        observer->psi_rd_wb += cfg.control_period_s * dx_rd;
+        observer->psi_rq_wb += cfg.control_period_s * dx_rq;
+        observer->psi_sd_wb = (d.det_l / d.lr_h) * input->isd_a +
+            (cfg.lm_h / d.lr_h) * observer->psi_rd_wb;
+        observer->psi_sq_wb = (d.det_l / d.lr_h) * input->isq_a +
+            (cfg.lm_h / d.lr_h) * observer->psi_rq_wb;
+
+        observer->last_isd_a = input->isd_a;
+        observer->last_isq_a = input->isq_a;
+        observer->has_last_current = 1u;
+
+        memset(observer->H, 0, sizeof(observer->H));
+        observer->H[0][0] = k1;
+        observer->H[0][1] = -k2;
+        observer->H[1][0] = k2;
+        observer->H[1][1] = k1;
+
+        if (output != NULL) {
+            fo_primary_current_from_flux(
+                &d,
+                observer->psi_sd_wb,
+                observer->psi_sq_wb,
+                observer->psi_rd_wb,
+                observer->psi_rq_wb,
+                &isd_hat,
+                &isq_hat);
+            fo_secondary_current_from_flux(
+                &d,
+                observer->psi_sd_wb,
+                observer->psi_sq_wb,
+                observer->psi_rd_wb,
+                observer->psi_rq_wb,
+                &ird_hat,
+                &irq_hat);
+            output->psi_sd_wb = observer->psi_sd_wb;
+            output->psi_sq_wb = observer->psi_sq_wb;
+            output->psi_rd_wb = observer->psi_rd_wb;
+            output->psi_rq_wb = observer->psi_rq_wb;
+            output->isd_hat_a = isd_hat;
+            output->isq_hat_a = isq_hat;
+            output->ird_hat_a = ird_hat;
+            output->irq_hat_a = irq_hat;
+            output->omega_r_rad_s = omega_r;
+            output->omega_k_rad_s = omega_k;
+            memcpy(output->H, observer->H, sizeof(observer->H));
+        }
+
+        return FLUX_OBSERVER_OK;
+    }
+
     status = fo_observer_H(observer, &cfg, &d, omega_r, omega_k, observer->H);
     if (status != FLUX_OBSERVER_OK) {
         return status;
     }
-    observer->last_config = cfg;
 
     fo_primary_current_from_flux(
         &d,

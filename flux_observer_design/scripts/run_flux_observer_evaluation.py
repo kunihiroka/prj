@@ -1,11 +1,15 @@
-"""Rotating-dq full-order flux observer design and evaluation.
+"""Rotating-dq flux observer design and evaluation.
 
-The observer state is the real four-state vector
+The default observer state is the real four-state vector
 
     x = [psi_sd, psi_sq, psi_rd, psi_rq]^T.
 
 Only stator current is used for correction. Stator and rotor currents are
 calculated from the estimated stator and rotor fluxes.
+
+The Hori 5.3 option follows the paper's model-correction flux observer. Its
+dynamic state is rotor flux only; stator flux and stator current are obtained
+algebraically from the measured stator current and estimated rotor flux.
 """
 
 from __future__ import annotations
@@ -25,7 +29,7 @@ OUT_DIR = ROOT / "figures"
 DATA_DIR = ROOT / "data"
 
 GAIN_DESIGN_FOUR_POLE = "four_pole"
-GAIN_DESIGN_HORI_5_3 = "hori_5_3"
+GAIN_DESIGN_HORI_5_3 = "hori_5_3_paper"
 
 
 @dataclass(frozen=True)
@@ -148,15 +152,7 @@ def state_matrix(params: MotorParams, omega_r: float, omega_k: float) -> tuple[n
 def observer_distribution_matrix(gain_design: str = GAIN_DESIGN_FOUR_POLE) -> np.ndarray:
     """Return the fixed output-error distribution matrix used in the Sylvester design."""
     if gain_design == GAIN_DESIGN_HORI_5_3:
-        return np.array(
-            [
-                [1.0, 0.0],
-                [0.0, 1.0],
-                [0.0, 1.0],
-                [1.0, 0.0],
-            ],
-            dtype=float,
-        )
+        raise ValueError("Hori 5.3 paper method does not use the Sylvester distribution matrix")
     return np.array(
         [
             [1.0, 0.0],
@@ -185,31 +181,15 @@ def observer_target_matrix(
 ) -> np.ndarray:
     """Return the target error-dynamics matrix F.
 
-    ``four_pole`` is the previous design and keeps four independently
-    specified real poles. ``hori_5_3`` is not a literal implementation of
-    section 5.3 of the Hori paper; it reuses the alpha/beta pole-pair idea and
-    represents it as two real 2x2 blocks so that the observer remains the same
-    real four-state full-order observer.
+    ``four_pole`` keeps four independently specified real poles. The Hori 5.3
+    paper method does not use this target matrix because its pole placement is
+    obtained directly from the paper's k1/k2 formulas.
     """
     if gain_design == GAIN_DESIGN_FOUR_POLE:
         return np.diag(desired_observer_poles(observer_bandwidth, pole_ratios))
 
     if gain_design == GAIN_DESIGN_HORI_5_3:
-        alpha = observer_bandwidth if hori_alpha is None else float(hori_alpha)
-        if hori_beta is None:
-            raise ValueError("hori_beta must be specified for hori_5_3 gain design")
-        beta = float(hori_beta)
-        if not math.isfinite(alpha) or alpha <= 0.0 or not math.isfinite(beta) or beta <= 0.0:
-            raise ValueError("hori_5_3 requires positive finite alpha and beta")
-        return np.array(
-            [
-                [-alpha, -beta, 0.0, 0.0],
-                [beta, -alpha, 0.0, 0.0],
-                [0.0, 0.0, -alpha, -beta],
-                [0.0, 0.0, beta, -alpha],
-            ],
-            dtype=float,
-        )
+        raise ValueError("Hori 5.3 paper method uses direct k1/k2 pole placement")
 
     raise ValueError(f"unknown observer gain design: {gain_design}")
 
@@ -241,10 +221,12 @@ def observer_H_gain_by_pole_placement(
         H = inv(T)*G.
 
     If T is nonsingular, A - H*C is similar to F and therefore has the
-    requested target poles. The default F is the previous four-real-pole
-    design. The optional ``hori_5_3`` F keeps the same full-order observer but
-    uses alpha/beta pole blocks inspired by section 5.3 of the Hori paper.
+    requested target poles. This function is used only by the four-real-pole
+    Sylvester design. Hori 5.3 paper pole placement is calculated separately
+    from the paper's k1/k2 equations.
     """
+    if gain_design == GAIN_DESIGN_HORI_5_3:
+        raise ValueError("Hori 5.3 paper method does not use Sylvester H")
     a, _, c = state_matrix(params, omega_r, omega_k)
     f = observer_target_matrix(
         gain_design=gain_design,
@@ -260,6 +242,64 @@ def observer_H_gain_by_pole_placement(
     rhs = (g @ c).reshape(n * n, order="F")
     t_matrix = np.linalg.solve(sylvester_matrix, rhs).reshape((n, n), order="F")
     return np.linalg.solve(t_matrix, g)
+
+
+def hori53_gain(
+    params: MotorParams,
+    omega_k: float,
+    omega_ref_relative: float,
+    alpha: float,
+    beta: float,
+) -> tuple[float, float]:
+    """Return K = k1 I + k2 J for Hori section 5.3 in a rotating frame.
+
+    The original paper is written in the stationary reference frame, where the
+    rotor-flux equation contains omega_r J. In this repository the observer may
+    run in a rotating dq frame with angular velocity omega_k. Re-deriving the
+    paper's error equation in that frame gives the equations below. For the
+    stationary frame, omega_k = 0 and omega_ref_relative = omega_r, so they
+    reduce exactly to the paper's Eq. (33) and Eq. (34).
+    """
+    if alpha <= 0.0 or beta <= 0.0:
+        raise ValueError("alpha and beta must be positive")
+    a = params.rr / params.lr
+    c_inv = params.lr / params.lm
+    q = beta + omega_k
+    den = alpha * alpha + q * q
+    r1 = c_inv * (alpha - a)
+    r2 = c_inv * (beta - omega_ref_relative)
+    k1 = (alpha * r1 + q * r2) / den
+    k2 = (q * r1 - alpha * r2) / den
+    return float(k1), float(k2)
+
+
+def hori53_observer_step(
+    params: MotorParams,
+    psi_r_hat: np.ndarray,
+    i_s: np.ndarray,
+    i_s_dot: np.ndarray,
+    v_s: np.ndarray,
+    omega_k: float,
+    omega_ref_relative: float,
+    alpha: float,
+    beta: float,
+) -> tuple[np.ndarray, tuple[float, float]]:
+    """Integrate the rotor-flux derivative of Hori paper Eq. (20)/(21)."""
+    k1, k2 = hori53_gain(params, omega_k, omega_ref_relative, alpha, beta)
+    k = np.array([[k1, -k2], [k2, k1]], dtype=float)
+    j = dq_j_matrix()
+    a = params.rr / params.lr
+    sigma_ls = params.sigma_ls
+    rhs = (-a * np.eye(2) + omega_ref_relative * j) @ psi_r_hat
+    rhs += (params.lm * a) * i_s
+    rhs += params.rs * (k @ i_s)
+    rhs += sigma_ls * (k @ i_s_dot)
+    rhs += sigma_ls * omega_k * (k @ (j @ i_s))
+    rhs += (params.lm / params.lr) * omega_k * (k @ (j @ psi_r_hat))
+    rhs -= k @ v_s
+    lhs = np.eye(2) - (params.lm / params.lr) * k
+    psi_r_dot = np.linalg.solve(lhs, rhs)
+    return psi_r_dot, (k1, k2)
 
 
 def dq_scale_rotate(v: np.ndarray, scale_d: float, scale_q: float) -> np.ndarray:
@@ -345,15 +385,22 @@ def simulate_case(
 
     a_true, b_true, _ = state_matrix(true_params, omega_r, omega_k)
     a_obs, b_obs, c_obs = state_matrix(obs_params, omega_r, omega_k)
-    H = observer_H_gain_by_pole_placement(
-        obs_params,
-        omega_r,
-        omega_k,
-        gain_design=gain_design,
-        hori_alpha=hori_alpha,
-        hori_beta=hori_beta,
-    )
-    placed_poles = np.linalg.eigvals(a_obs - H @ c_obs)
+    alpha = 2200.0 if hori_alpha is None else float(hori_alpha)
+    beta = 500.0 if hori_beta is None else float(hori_beta)
+    use_hori53 = gain_design == GAIN_DESIGN_HORI_5_3
+    if use_hori53:
+        H = np.zeros((4, 2), dtype=float)
+        placed_poles = np.array([-alpha + 1j * beta, -alpha - 1j * beta], dtype=complex)
+    else:
+        H = observer_H_gain_by_pole_placement(
+            obs_params,
+            omega_r,
+            omega_k,
+            gain_design=gain_design,
+            hori_alpha=hori_alpha,
+            hori_beta=hori_beta,
+        )
+        placed_poles = np.linalg.eigvals(a_obs - H @ c_obs)
 
     n = int(round(t_end / dt)) + 1
     t = np.linspace(0.0, t_end, n)
@@ -367,6 +414,12 @@ def simulate_case(
         ],
         dtype=float,
     )
+    if use_hori53:
+        # Hori 5.3 observes rotor flux. Stator flux is algebraically
+        # reconstructed from measured stator current and estimated rotor flux.
+        x_hat[0:2] = obs_params.sigma_ls * np.array(ss["i_s"], dtype=float) + (
+            obs_params.lm / obs_params.lr
+        ) * x_hat[2:4]
 
     true_flux = np.zeros((n, 4), dtype=float)
     est_flux = np.zeros((n, 4), dtype=float)
@@ -378,10 +431,15 @@ def simulate_case(
 
     v_offset = np.array([case.voltage_offset_d, case.voltage_offset_q], dtype=float)
     i_offset = np.array([case.current_offset_d, case.current_offset_q], dtype=float)
+    last_i_meas: np.ndarray | None = None
 
     for k in range(n):
         is_true, ir_true = all_currents(true_params, x_true)
-        is_hat, ir_hat = all_currents(obs_params, x_hat)
+        if use_hori53:
+            is_hat = obs_params.lr / obs_params.det_l * x_hat[0:2] - obs_params.lm / obs_params.det_l * x_hat[2:4]
+            ir_hat = (x_hat[2:4] - obs_params.lm * is_hat) / obs_params.lr
+        else:
+            is_hat, ir_hat = all_currents(obs_params, x_hat)
 
         true_flux[k, :] = x_true
         est_flux[k, :] = x_hat
@@ -401,9 +459,29 @@ def simulate_case(
         dx_true = a_true @ x_true + b_true @ v_true
         x_true = x_true + dt * dx_true
 
-        innovation = i_meas - (c_obs @ x_hat)
-        dx_hat = a_obs @ x_hat + b_obs @ v_meas + H @ innovation
-        x_hat = x_hat + dt * dx_hat
+        if use_hori53:
+            if last_i_meas is None:
+                i_dot = np.zeros(2, dtype=float)
+            else:
+                i_dot = (i_meas - last_i_meas) / dt
+            last_i_meas = i_meas.copy()
+            psi_r_dot, _ = hori53_observer_step(
+                obs_params,
+                psi_r_hat=x_hat[2:4],
+                i_s=i_meas,
+                i_s_dot=i_dot,
+                v_s=v_meas,
+                omega_k=omega_k,
+                omega_ref_relative=omega_r - omega_k,
+                alpha=alpha,
+                beta=beta,
+            )
+            x_hat[2:4] = x_hat[2:4] + dt * psi_r_dot
+            x_hat[0:2] = obs_params.sigma_ls * i_meas + (obs_params.lm / obs_params.lr) * x_hat[2:4]
+        else:
+            innovation = i_meas - (c_obs @ x_hat)
+            dx_hat = a_obs @ x_hat + b_obs @ v_meas + H @ innovation
+            x_hat = x_hat + dt * dx_hat
 
         if not np.all(np.isfinite(x_hat)) or np.max(np.abs(x_hat)) > 10.0:
             stable = False

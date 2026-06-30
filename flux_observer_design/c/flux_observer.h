@@ -70,6 +70,9 @@ typedef struct FluxObserver {
     float psi_sq_wb;
     float psi_rd_wb;
     float psi_rq_wb;
+    float last_isd_a;
+    float last_isq_a;
+    uint8_t has_last_current;
     float observer_poles_rad_s[FLUX_OBSERVER_POLE_COUNT];
     FluxObserverGainDesign gain_design;
     float hori_alpha_rad_s;
@@ -86,8 +89,9 @@ void FluxObserver_SetObserverPoles(
     float pole1_rad_s,
     float pole2_rad_s,
     float pole3_rad_s);
-/* Uses Hori 5.3-inspired alpha/beta target poles with this module's
- * four-state Sylvester pole-placement implementation. */
+/* Uses Hori 1986 section 5.3 k1/k2 alpha-beta pole placement. This mode
+ * observes rotor flux with the paper's model-correction observer; stator
+ * flux is reconstructed from measured stator current and estimated rotor flux. */
 void FluxObserver_SetHori53PolePlacement(
     FluxObserver *observer,
     float alpha_rad_s,

@@ -5,9 +5,9 @@ Methods:
     A_four_pole_sylvester:
         Real four-state observer with four real poles and Sylvester equation.
 
-    B_alpha_beta_sylvester:
-        Real four-state observer with alpha/beta pole blocks and Sylvester
-        equation.
+    B_hori53_paper:
+        Hori 1986 section 5.3 model-correction flux observer with paper
+        k1/k2 alpha/beta pole placement.
 
     C_sled23_closed_form:
         SLED 2023 Appendix A observer in estimated rotor-flux coordinates.
@@ -32,7 +32,7 @@ OUT_DIR = ROOT / "figures"
 DATA_DIR = ROOT / "data"
 
 METHOD_A = "A_four_pole_sylvester"
-METHOD_B = "B_alpha_beta_sylvester"
+METHOD_B = "B_hori53_paper"
 METHOD_C = "C_sled23_closed_form"
 
 SLED_ALPHA_I = 1000.0
@@ -62,7 +62,7 @@ def convergence_time(t: np.ndarray, err: np.ndarray, threshold: float) -> float:
     return float("nan")
 
 
-def result_from_sylvester(
+def result_from_flux_evaluation(
     method: str,
     true_params: fo.MotorParams,
     op: fo.OperatingPoint,
@@ -239,8 +239,8 @@ def run_all() -> list[MethodResult]:
     for op in ops:
         print(f"Evaluating {op.name}")
         for idx, case in enumerate(cases):
-            results.append(result_from_sylvester(METHOD_A, params, op, case))
-            results.append(result_from_sylvester(METHOD_B, params, op, case))
+            results.append(result_from_flux_evaluation(METHOD_A, params, op, case))
+            results.append(result_from_flux_evaluation(METHOD_B, params, op, case))
             results.append(result_from_sled23(params, op, case, seed=3000 + idx))
     return results
 
@@ -343,7 +343,7 @@ def plot_nominal_convergence(results: list[MethodResult]) -> Path:
     ops = [r.op.name for r in nominal if r.method == METHOD_A]
     fig, axes = plt.subplots(len(ops), 2, figsize=(13, 9), sharex=False)
     colors = {METHOD_A: "#1f77b4", METHOD_B: "#d62728", METHOD_C: "#2ca02c"}
-    labels = {METHOD_A: "A four-pole", METHOD_B: "B alpha/beta", METHOD_C: "C SLED23"}
+    labels = {METHOD_A: "A four-pole", METHOD_B: "B Hori 5.3", METHOD_C: "C SLED23"}
     for row, op_name in enumerate(ops):
         for method in [METHOD_A, METHOD_B, METHOD_C]:
             r = [x for x in nominal if x.op.name == op_name and x.method == method][0]
@@ -369,7 +369,7 @@ def plot_worst_error_summary(results: list[MethodResult]) -> Path:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     op_name = "5000rpm_-220Nm"
     methods = [METHOD_A, METHOD_B, METHOD_C]
-    labels = ["A four-pole", "B alpha/beta", "C SLED23"]
+    labels = ["A four-pole", "B Hori 5.3", "C SLED23"]
     param_psi = []
     sensor_psi = []
     param_i = []
