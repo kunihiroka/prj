@@ -143,8 +143,8 @@ def simulate_case(
     op: OperatingPoint,
     dt: float = 1.0e-5,
     t_end: float = 0.08,
-    alpha_i: float = 2200.0,
-    zeta_inf: float = 0.2,
+    alpha_i: float = 1000.0,
+    zeta_inf: float = 0.4,
 ) -> Sled23Result:
     ss = steady_rotor_flux_frame(params, op)
     n = int(round(t_end / dt)) + 1
@@ -229,10 +229,7 @@ def plot_results(results: list[Sled23Result]) -> Path:
 
 def main() -> None:
     params = MotorParams()
-    # This demo focuses on the high-speed motoring/regenerating points used in
-    # the current-control instability discussion. Very-low-speed sensorless
-    # operation is a separate tuning/stability problem.
-    results = [simulate_case(params, op) for op in base_operating_points(params)[:2]]
+    results = [simulate_case(params, op) for op in base_operating_points(params)]
     summary = save_summary(results)
     figure = plot_results(results)
     for result in results:

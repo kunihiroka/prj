@@ -119,8 +119,8 @@ void Sled23FluxObserver_Init(Sled23FluxObserver *observer, FluxObserverApi api)
     }
     memset(observer, 0, sizeof(*observer));
     observer->api = api;
-    observer->alpha_i_rad_s = 2200.0f;
-    observer->zeta_inf = 0.2f;
+    observer->alpha_i_rad_s = 1000.0f;
+    observer->zeta_inf = 0.4f;
     observer->fixed_b_rad_s = 0.0f;
     observer->use_fixed_b = 0u;
     observer->min_denominator_wb = 1.0e-6f;

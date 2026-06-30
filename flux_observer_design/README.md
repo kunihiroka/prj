@@ -10,7 +10,7 @@ $$
 
 として設計する。したがって、4状態に対応する4個のオブザーバ極をすべて明示的に配置する。
 
-実装ではゲイン設計方式を切り替え可能にした。標準は前版と同じ「4個の実極を直接指定する方式」である。追加方式として、文献5.3の極配置思想に合わせ、極の実部を $\alpha$、虚部を $\beta$ として指定する方式を用意した。どちらの方式でも、オブザーバ状態は一次磁束・二次磁束の4状態のままであり、出力誤差から一般の実数 $H$ を計算する。
+実装ではゲイン設計方式を切り替え可能にした。方式Aは「4個の実極を直接指定する方式」、方式Bは文献5.3の極配置思想に合わせて極の実部を $\alpha$、虚部を $\beta$ として指定する方式、方式CはSLED 2023 Appendix Aに基づく閉形式方式である。方式A/Bでは、オブザーバ状態は一次磁束・二次磁束の4状態のままであり、出力誤差から一般の実数 $H$ を計算する。方式Cでは、推定ロータ磁束座標上で閉形式の更新式を用いる。
 
 使用した誘導機定数は以下である。
 
@@ -29,7 +29,7 @@ $$
 L_s=L_{ls}+M,\qquad L_r=L_{lr}+M,\qquad D=L_sL_r-M^2
 $$
 
-実装と評価は [scripts/run_flux_observer_evaluation.py](scripts/run_flux_observer_evaluation.py) にまとめている。C言語実装は [c/flux_observer.c](c/flux_observer.c) と [c/flux_observer.h](c/flux_observer.h) に置いた。PDF版は [flux_observer_design_report.pdf](flux_observer_design_report.pdf) に出力する。
+方式Aの詳細評価は [scripts/run_flux_observer_evaluation.py](scripts/run_flux_observer_evaluation.py) に、3方式の共通評価は [scripts/run_gain_design_comparison.py](scripts/run_gain_design_comparison.py) にまとめている。C言語実装は [c/flux_observer.c](c/flux_observer.c)、[c/flux_observer.h](c/flux_observer.h)、[c/sled23_flux_observer.c](c/sled23_flux_observer.c)、[c/sled23_flux_observer.h](c/sled23_flux_observer.h) に置いた。PDF版は [flux_observer_design_report.pdf](flux_observer_design_report.pdf) に出力する。
 
 ## 1. 概要
 
@@ -480,9 +480,15 @@ $$
 
 を使う。固定値で評価したい場合はC APIで $b$ を直接指定できる。
 
+本評価およびC APIの標準値は、3動作点で収束を確認した以下とする。
+
+$$
+\alpha_i=1000\ \mathrm{rad/s},\qquad \zeta_{\infty}=0.4
+$$
+
 この方式の特徴は、ゲイン計算が閉形式であり、制御周期ごとに16元連立一次方程式を解かないことである。したがって、組込み機器に搭載する観点では、Sylvester法を毎周期実行する方式よりもこちらのほうが実装負荷は小さい。SLED 2023 Appendix Aの式は、Cでは [c/sled23_flux_observer.c](c/sled23_flux_observer.c) と [c/sled23_flux_observer.h](c/sled23_flux_observer.h) に実装した。Python確認用には [scripts/run_sled23_appendix_observer_demo.py](scripts/run_sled23_appendix_observer_demo.py) を追加した。
 
-デモでは、5000 r/min, +220 Nmおよび5000 r/min, -220 Nmの2条件で、初期推定誤差を与えても推定電流と推定ロータ磁束が真値へ収束することを確認した。
+デモでは、5000 r/min, +220 Nm、5000 r/min, -220 Nm、1000 r/min, -220 Nmの3条件で、初期推定誤差を与えても推定電流と推定ロータ磁束が真値へ収束することを確認した。
 
 ![sled23 appendix observer convergence](figures/sled23_appendix_observer_convergence.png)
 
@@ -593,10 +599,11 @@ $A_o-HC_o$ がHurwitz、すなわち全固有値の実部が負であり、$d(t)
 
 ### 5.1 評価方法
 
-評価スクリプトは以下で実行できる。
+評価は2種類のスクリプトで行った。方式Aの詳細波形と誤差掃引は従来の評価スクリプトで確認し、方式A/B/Cの横並び比較は3方式共通評価スクリプトで行った。
 
 ```powershell
 python .\flux_observer_design\scripts\run_flux_observer_evaluation.py
+python .\flux_observer_design\scripts\run_gain_design_comparison.py
 ```
 
 生成物は以下である。
@@ -604,10 +611,15 @@ python .\flux_observer_design\scripts\run_flux_observer_evaluation.py
 | ファイル | 内容 |
 |---|---|
 | [data/evaluation_summary.csv](data/evaluation_summary.csv) | 全評価ケースの数値結果 |
+| [data/gain_design_comparison_summary.csv](data/gain_design_comparison_summary.csv) | 方式A/B/Cを同一条件で評価した全数値結果 |
+| [data/gain_design_nominal_comparison.csv](data/gain_design_nominal_comparison.csv) | 無誤差時の3方式比較 |
+| [data/gain_design_worst_error_comparison.csv](data/gain_design_worst_error_comparison.csv) | 5000 r/min, -220 Nm条件の最悪誤差比較 |
 | [figures/nominal_waveform_5000rpm_motoring.png](figures/nominal_waveform_5000rpm_motoring.png) | 5000 r/min力行の無誤差波形 |
 | [figures/nominal_waveform_5000rpm_regen.png](figures/nominal_waveform_5000rpm_regen.png) | 5000 r/min回生の無誤差波形 |
 | [figures/nominal_waveform_1000rpm_regen.png](figures/nominal_waveform_1000rpm_regen.png) | 1000 r/min回生の無誤差波形 |
 | [figures/nominal_convergence.png](figures/nominal_convergence.png) | 3動作点の収束誤差 |
+| [figures/gain_design_nominal_convergence.png](figures/gain_design_nominal_convergence.png) | 方式A/B/Cの無誤差収束比較 |
+| [figures/gain_design_worst_error_summary.png](figures/gain_design_worst_error_summary.png) | 方式A/B/Cの最悪誤差比較 |
 | [figures/parameter_error_sweep.png](figures/parameter_error_sweep.png) | 定数誤差感度 |
 | [figures/sensor_error_summary.png](figures/sensor_error_summary.png) | 電圧・電流誤差感度 |
 
@@ -619,6 +631,14 @@ python .\flux_observer_design\scripts\run_flux_observer_evaluation.py
 | 積分刻み | $10\ \mu\mathrm{s}$ |
 | 初期推定誤差 | 一次・二次磁束に大きな初期誤差を付与 |
 | 誤差評価窓 | 最終20%区間のRMS |
+
+比較した3方式の設計値は以下である。
+
+| 方式 | 設計値 |
+|---|---|
+| 方式A | $-2200,-2750,-3410,-4400\ \mathrm{rad/s}$ の4実極 |
+| 方式B | $\alpha=2200\ \mathrm{rad/s}$, $\beta=500\ \mathrm{rad/s}$ の共役極2組 |
+| 方式C | $\alpha_i=1000\ \mathrm{rad/s}$, $\zeta_{\infty}=0.4$ |
 
 定数誤差は、$R_s,R_r,M,L_{ls},L_{lr}$ を1つずつ以下の刻みで変化させた。
 
@@ -638,15 +658,25 @@ $$
 
 ### 5.2 無誤差時の収束
 
-無誤差では、3動作点すべてで一次磁束・二次磁束、および一次電流・二次電流の推定値が真値へ収束した。
+無誤差では、3方式とも3動作点すべてで推定値が真値へ収束した。方式A/Bは4状態の実dq磁束オブザーバ、方式CはSLED 2023 Appendix Aの推定ロータ磁束座標オブザーバであり、状態と座標系は同一ではない。そのため絶対値を完全に横並び比較するより、同一条件で発散せず収束すること、収束時間と誤差感度の傾向を見ることが重要である。
 
-| 条件 | 二次磁束RMS誤差 | 一次電流RMS誤差 | 二次磁束1%収束時間 | 一次電流1A収束時間 |
-|---|---:|---:|---:|---:|
-| 5000 r/min, +220 Nm | $6.52\times10^{-13}\%$ | $1.17\times10^{-12}\ \mathrm{A}$ | $2.75\ \mathrm{ms}$ | $3.64\ \mathrm{ms}$ |
-| 5000 r/min, -220 Nm | $5.34\times10^{-13}\%$ | $8.51\times10^{-13}\ \mathrm{A}$ | $2.82\ \mathrm{ms}$ | $3.71\ \mathrm{ms}$ |
-| 1000 r/min, -220 Nm | $1.74\times10^{-12}\%$ | $2.45\times10^{-13}\ \mathrm{A}$ | $3.50\ \mathrm{ms}$ | $3.65\ \mathrm{ms}$ |
+| 方式 | 条件 | 二次磁束RMS誤差 | 一次電流RMS誤差 | 二次磁束1%収束 | 一次電流1A収束 |
+|---|---|---:|---:|---:|---:|
+| 方式A | 5000 r/min, +220 Nm | $6.52\times10^{-13}\%$ | $1.17\times10^{-12}\ \mathrm{A}$ | $2.75\ \mathrm{ms}$ | $3.64\ \mathrm{ms}$ |
+| 方式B | 5000 r/min, +220 Nm | $4.12\times10^{-13}\%$ | $2.42\times10^{-12}\ \mathrm{A}$ | $3.00\ \mathrm{ms}$ | $4.05\ \mathrm{ms}$ |
+| 方式C | 5000 r/min, +220 Nm | $1.32\times10^{-12}\%$ | $8.21\times10^{-12}\ \mathrm{A}$ | $6.55\ \mathrm{ms}$ | $9.69\ \mathrm{ms}$ |
+| 方式A | 5000 r/min, -220 Nm | $5.34\times10^{-13}\%$ | $8.51\times10^{-13}\ \mathrm{A}$ | $2.82\ \mathrm{ms}$ | $3.71\ \mathrm{ms}$ |
+| 方式B | 5000 r/min, -220 Nm | $5.82\times10^{-13}\%$ | $9.91\times10^{-13}\ \mathrm{A}$ | $3.05\ \mathrm{ms}$ | $4.10\ \mathrm{ms}$ |
+| 方式C | 5000 r/min, -220 Nm | $1.20\times10^{-12}\%$ | $7.28\times10^{-12}\ \mathrm{A}$ | $6.26\ \mathrm{ms}$ | $9.43\ \mathrm{ms}$ |
+| 方式A | 1000 r/min, -220 Nm | $1.74\times10^{-12}\%$ | $2.45\times10^{-13}\ \mathrm{A}$ | $3.50\ \mathrm{ms}$ | $3.65\ \mathrm{ms}$ |
+| 方式B | 1000 r/min, -220 Nm | $1.60\times10^{-12}\%$ | $4.11\times10^{-13}\ \mathrm{A}$ | $3.73\ \mathrm{ms}$ | $4.09\ \mathrm{ms}$ |
+| 方式C | 1000 r/min, -220 Nm | $8.24\times10^{-6}\%$ | $2.72\times10^{-5}\ \mathrm{A}$ | $28.45\ \mathrm{ms}$ | $35.99\ \mathrm{ms}$ |
 
-以下に、各動作点での一次磁束、二次磁束、一次電流、二次電流の真値とオブザーバ推定値を示す。破線が推定値であり、初期推定誤差を付与した後、各成分が真値へ収束している。
+方式Cは方式A/Bより収束時間が長いが、閉形式で計算できるため計算負荷が小さい。低速1000 r/min回生では、方式Cの収束時間がさらに長くなる。これは設計式中の速度依存項 $b=2\zeta_{\infty}|\hat{\omega}_m|+\alpha$ により、高速時より誤差減衰が遅くなるためである。
+
+![gain design nominal convergence](figures/gain_design_nominal_convergence.png)
+
+以下に、方式Aの各動作点での一次磁束、二次磁束、一次電流、二次電流の真値とオブザーバ推定値を示す。破線が推定値であり、初期推定誤差を付与した後、各成分が真値へ収束している。方式B/Cの収束波形は [figures/gain_design_nominal_convergence.png](figures/gain_design_nominal_convergence.png) に含めた。
 
 ![5000 r/min motoring nominal waveform](figures/nominal_waveform_5000rpm_motoring.png)
 
@@ -654,44 +684,41 @@ $$
 
 ![1000 r/min regeneration nominal waveform](figures/nominal_waveform_1000rpm_regen.png)
 
-収束誤差を対数軸で表示した結果を以下に示す。
-
-![nominal convergence](figures/nominal_convergence.png)
-
 ### 5.3 定数誤差の評価
 
-全ての定数誤差ケースで発散は発生しなかった。5000 r/min, -220 Nm条件で、二次磁束推定誤差が最大となった各定数のケースは以下である。
+全ての定数誤差ケースで発散は発生しなかった。5000 r/min, -220 Nm条件で、各方式ごとに二次磁束推定誤差が最大となったケースを以下に示す。
 
-| 誤差対象 | 最悪ケース | 二次磁束RMS誤差 | 一次電流RMS誤差 |
-|---|---:|---:|---:|
-| $R_s$ | $-20\%$ | $0.655\%$ | $0.094\ \mathrm{A}$ |
-| $R_r$ | $-20\%$ | $0.405\%$ | $1.410\ \mathrm{A}$ |
-| $M$ | $-20\%$ | $5.742\%$ | $2.651\ \mathrm{A}$ |
-| $L_{ls}$ | $-20\%$ | $7.502\%$ | $0.941\ \mathrm{A}$ |
-| $L_{lr}$ | $-20\%$ | $2.583\%$ | $0.181\ \mathrm{A}$ |
+| 方式 | 最悪ケース | 二次磁束RMS誤差 | 一次電流RMS誤差 | 安定性 |
+|---|---|---:|---:|---|
+| 方式A | $L_{ls}$ $-20\%$ | $7.502\%$ | $0.941\ \mathrm{A}$ | 安定 |
+| 方式B | $L_{ls}$ $-20\%$ | $7.422\%$ | $1.911\ \mathrm{A}$ | 安定 |
+| 方式C | $L_{ls}$ $+20\%$ | $7.855\%$ | $23.783\ \mathrm{A}$ | 安定 |
 
-今回の範囲では、二次磁束推定は $L_{ls}$ と $M$ の誤差に比較的敏感であり、$R_s$ と $R_r$ の単独誤差に対しては比較的鈍感であった。ただし、これはオブザーバ単体を凍結動作点で評価した結果である。$R_r$ 誤差が滑り演算やベクトル制御の軸角に与える影響は、この評価には含めていない。
+方式A/Bでは $L_{ls}$ 誤差に対する二次磁束誤差が最大であり、方式Cでも最大感度は $L_{ls}$ 誤差であった。ただし方式Cでは、二次磁束誤差の絶対水準は方式A/Bと同程度である一方、推定電流誤差が大きく出やすい。これは方式Cが推定ロータ磁束座標で電流とロータ磁束を直接状態に持つため、パラメータ誤差が電流推定式へ直接入りやすいことを示す。
+
+全定数誤差ケースの数値は [data/gain_design_comparison_summary.csv](data/gain_design_comparison_summary.csv) に保存した。方式A単体の定数ごとの掃引結果を以下に示す。
 
 ![parameter error sweep](figures/parameter_error_sweep.png)
 
 ### 5.4 電圧誤差・電流誤差の評価
 
-5000 r/min, -220 Nm条件の結果を以下に示す。全ケースで発散は発生しなかった。
+5000 r/min, -220 Nm条件の結果を以下に示す。全方式・全ケースで発散は発生しなかった。
 
-| ケース | 二次磁束RMS誤差 | 一次電流RMS誤差 | 安定性 |
-|---|---:|---:|---|
-| 無誤差 | $0.000\%$ | $0.000\ \mathrm{A}$ | 安定 |
-| 電圧ゲイン $+5\%$ | $7.823\%$ | $0.764\ \mathrm{A}$ | 安定 |
-| 電圧ゲイン $-5\%$ | $7.823\%$ | $0.764\ \mathrm{A}$ | 安定 |
-| 電圧オフセット | $0.763\%$ | $0.101\ \mathrm{A}$ | 安定 |
-| 電流ゲイン $+1\%$ | $0.647\%$ | $7.929\ \mathrm{A}$ | 安定 |
-| 電流ゲイン $-1\%$ | $0.647\%$ | $7.929\ \mathrm{A}$ | 安定 |
-| 電流オフセット | $0.115\%$ | $1.403\ \mathrm{A}$ | 安定 |
-| 電流ノイズ $1\ \mathrm{A_{rms}}$ | $0.020\%$ | $0.285\ \mathrm{A}$ | 安定 |
+| ケース | 方式A 二次磁束 | 方式B 二次磁束 | 方式C 二次磁束 | 方式A 電流 | 方式B 電流 | 方式C 電流 |
+|---|---:|---:|---:|---:|---:|---:|
+| 電圧ゲイン $+5\%$ | $7.823\%$ | $7.737\%$ | $8.072\%$ | $0.764\ \mathrm{A}$ | $1.770\ \mathrm{A}$ | $12.878\ \mathrm{A}$ |
+| 電圧ゲイン $-5\%$ | $7.823\%$ | $7.737\%$ | $8.083\%$ | $0.764\ \mathrm{A}$ | $1.770\ \mathrm{A}$ | $13.019\ \mathrm{A}$ |
+| 電圧オフセット | $0.763\%$ | $0.759\%$ | $0.270\%$ | $0.101\ \mathrm{A}$ | $0.174\ \mathrm{A}$ | $3.531\ \mathrm{A}$ |
+| 電流ゲイン $+1\%$ | $0.647\%$ | $0.628\%$ | $0.616\%$ | $7.929\ \mathrm{A}$ | $7.894\ \mathrm{A}$ | $6.320\ \mathrm{A}$ |
+| 電流ゲイン $-1\%$ | $0.647\%$ | $0.628\%$ | $0.615\%$ | $7.929\ \mathrm{A}$ | $7.894\ \mathrm{A}$ | $6.331\ \mathrm{A}$ |
+| 電流オフセット | $0.115\%$ | $0.111\%$ | $0.102\%$ | $1.403\ \mathrm{A}$ | $1.400\ \mathrm{A}$ | $0.999\ \mathrm{A}$ |
+| 電流ノイズ $1\ \mathrm{A_{rms}}$ | $0.019\%$ | $0.013\%$ | $0.006\%$ | $0.289\ \mathrm{A}$ | $0.245\ \mathrm{A}$ | $0.209\ \mathrm{A}$ |
 
-電圧ゲイン誤差は磁束スケールに直接影響するため、今回のセンサ誤差条件では最も二次磁束誤差が大きかった。一方、電流ゲイン誤差は一次電流出力の真値比較ではゲイン差がそのまま残るため、一次電流RMS誤差が大きく見えるが、磁束推定誤差は1%未満であった。
+電圧ゲイン誤差は、どの方式でも二次磁束スケールに直接影響するため支配的である。方式Cは電圧ゲイン誤差時の推定電流誤差が方式A/Bより大きい。一方、電流ノイズに対しては方式Cの二次磁束誤差と電流誤差が最も小さく、測定ノイズ抑制には有利な傾向を示した。
 
-![sensor error summary](figures/sensor_error_summary.png)
+方式A/B/Cの最悪ケース比較を以下に示す。
+
+![gain design worst error summary](figures/gain_design_worst_error_summary.png)
 
 ### 5.5 結論
 
@@ -701,9 +728,17 @@ $$
 -2200,\quad -2750,\quad -3410,\quad -4400\ \mathrm{rad/s}
 $$
 
-無誤差では、一次・二次磁束および一次・二次電流の推定値は真値へ収束した。誤差あり評価では、指定範囲の定数誤差、電圧誤差、電流誤差に対して発散は見られず、安定性は維持された。精度面では、電圧ゲイン誤差、一次漏れインダクタンス誤差、相互インダクタンス誤差が二次磁束推定精度に対して支配的であった。
+無誤差では、方式A/B/Cの全てで一次・二次磁束および一次電流推定値が真値へ収束した。誤差あり評価でも、指定範囲の定数誤差、電圧誤差、電流誤差に対して全方式で発散は見られず、安定性は維持された。精度面では、電圧ゲイン誤差と一次漏れインダクタンス誤差が二次磁束推定精度に対して支配的であった。
 
-ゲイン設計法としては、組込み実装を重視するならSLED 2023 Appendix Aの閉形式方式を第一候補とする。Sylvester法による方式A/Bは、極配置の検証やゲインテーブル生成には有用だが、毎制御周期でオンライン実行するには計算負荷が大きい。方式Cは座標系と状態変数が異なるため統合時の注意は必要だが、閉形式でゲインと更新式を計算できるため、リアルタイム実装に最も適している。
+3方式の評価結果をまとめると以下である。
+
+- 方式A: 収束が速く、推定電流誤差も小さい。極配置の検証用、オフライン設計、ゲインテーブル生成に適する。ただし毎周期のオンラインSylvester計算は重い。
+- 方式B: 方式Aと同程度に収束し、alpha/betaで設計意図を表しやすい。ただし今回の実装では方式Aと同じ計算負荷を持ち、最終実装候補としての利点は限定的である。
+- 方式C: 収束は方式A/Bより遅く、定数誤差・電圧ゲイン誤差時の推定電流誤差が大きい。一方、ゲイン計算が閉形式で軽く、電流ノイズに対する誤差は小さい。組込み実装性が最も高い。
+
+したがって、最終的に組込み機器へ搭載する前提では、SLED 2023 Appendix Aの閉形式方式である方式Cを第一候補とする。ただし、精度検証と設計の基準として方式Aを残す価値は高い。方式Bは文献5.3の極指定思想との対応確認用として残すが、計算負荷の観点では方式Aと同じ弱点を持つため、量産組込みの第一候補にはしない。
+
+今回の方式Cは $\alpha_i=1000\ \mathrm{rad/s}$、$\zeta_{\infty}=0.4$ で評価した。この値では3動作点で収束したが、低速・弱め界磁・電圧誤差大・定数同時誤差を含む実機条件では追加評価が必要である。特に、方式Cは推定ロータ磁束座標を使うため、入力電圧・入力電流の座標変換、低磁束時の分母保護、制御系全体へ組み込んだときの閉ループ安定性を別途確認する必要がある。
 
 ## 付録A. C言語実装
 
@@ -816,7 +851,7 @@ Sled23FluxObserverOutput output;
 FluxObserverStatus status;
 
 Sled23FluxObserver_Init(&observer, api);
-Sled23FluxObserver_SetDesign(&observer, 2200.0f, 0.2f);
+Sled23FluxObserver_SetDesign(&observer, 1000.0f, 0.4f);
 Sled23FluxObserver_ResetFromCurrents(&observer, id0, iq0);
 
 input.usd_v = usd;

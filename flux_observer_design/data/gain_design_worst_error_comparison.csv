@@ -1,0 +1,7 @@
+method,error_group,worst_case,stable,psi_r_rel_pct,is_rms_a
+A_four_pole_sylvester,parameter,lls_-20pct,True,7.501853849537928,0.9405293341394473
+A_four_pole_sylvester,voltage_current,voltage_gain_+5pct,True,7.822911259757144,0.7640994986470002
+B_alpha_beta_sylvester,parameter,lls_-20pct,True,7.42175152360297,1.910865778149387
+B_alpha_beta_sylvester,voltage_current,voltage_gain_+5pct,True,7.736965802654963,1.769859416598129
+C_sled23_closed_form,parameter,lls_+20pct,True,7.85540672185118,23.783329454647028
+C_sled23_closed_form,voltage_current,voltage_gain_-5pct,True,8.083106602649762,13.019050794309008
