@@ -1039,16 +1039,13 @@ $$
 なので、
 
 $$
-\mathrm{tr}(F)
-=
--2a-2d-c(h_{11}+h_{22})+m(h_{31}+h_{42})
+\mathrm{tr}(F)=-2a-2d-c(h_{11}+h_{22})+m(h_{31}+h_{42})
 $$
 
 したがって、
 
 $$
-a_3=
-2a+2d+c(h_{11}+h_{22})-m(h_{31}+h_{42})
+a_3=2a+2d+c(h_{11}+h_{22})-m(h_{31}+h_{42})
 $$
 
 である。
@@ -1056,21 +1053,11 @@ $$
 残りの係数を完全展開すると非常に長くなる。実装や検算では、完全展開式を手で扱うより、トレースを使った以下の形で計算するほうが安全である。
 
 $$
-a_2=
-\frac{1}{2}
-\left[
-\{\mathrm{tr}(F)\}^2-\mathrm{tr}(F^2)
-\right]
+a_2=\frac{1}{2}\left[\{\mathrm{tr}(F)\}^2-\mathrm{tr}(F^2)\right]
 $$
 
 $$
-a_1=
--\frac{1}{6}
-\left[
-\{\mathrm{tr}(F)\}^3
--3\mathrm{tr}(F)\mathrm{tr}(F^2)
-+2\mathrm{tr}(F^3)
-\right]
+a_1=-\frac{1}{6}\left[\{\mathrm{tr}(F)\}^3-3\mathrm{tr}(F)\mathrm{tr}(F^2)+2\mathrm{tr}(F^3)\right]
 $$
 
 $$
