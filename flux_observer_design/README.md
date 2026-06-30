@@ -271,20 +271,53 @@ $$
 \tilde{x}=x-\hat{x}
 $$
 
-とおくと、測定値と推定出力の差は
+と定義する。誤差方程式は、この定義を時間微分して
 
 $$
-y-C\hat{x}=C(x-\hat{x})=C\tilde{x}
+\dot{\tilde{x}}=\dot{x}-\dot{\hat{x}}
 $$
 
-であるため、誤差方程式は
+と書くところから導出する。まず、真値モデルは
 
 $$
+\dot{x}=Ax+Bu
+$$
+
+である。一方、オブザーバは
+
+$$
+\dot{\hat{x}}=A\hat{x}+Bu+H(y-C\hat{x})
+$$
+
+である。これらを \(\dot{\tilde{x}}=\dot{x}-\dot{\hat{x}}\) に代入すると、
+
+$$
+\begin{aligned}
 \dot{\tilde{x}}
-=(A-HC)\tilde{x}
+&=(Ax+Bu)-\{A\hat{x}+Bu+H(y-C\hat{x})\}\\
+&=A(x-\hat{x})-H(y-C\hat{x})
+\end{aligned}
 $$
 
-となる。したがって、オブザーバの収束速度と振動性は、閉じた誤差行列
+となる。ここで、真値モデルとオブザーバに同じ入力 \(u\) を入れているため、\(Bu\) は差し引きで消える。
+
+さらに、測定出力は \(y=Cx\) なので、測定値と推定出力の差は
+
+$$
+y-C\hat{x}=Cx-C\hat{x}=C(x-\hat{x})=C\tilde{x}
+$$
+
+である。したがって、
+
+$$
+\begin{aligned}
+\dot{\tilde{x}}
+&=A\tilde{x}-HC\tilde{x}\\
+&=(A-HC)\tilde{x}
+\end{aligned}
+$$
+
+となる。これがオブザーバの誤差方程式である。したがって、オブザーバの収束速度と振動性は、閉じた誤差行列
 
 $$
 A_H=A-HC
@@ -525,12 +558,47 @@ $$
 \tilde{x}_R=x_R-\hat{x}_R
 $$
 
-と定義すると、
+と定義する。誤差の時間微分は
 
 $$
+\dot{\tilde{x}}_R=\dot{x}_R-\dot{\hat{x}}_R
+$$
+
+であるため、上の2式を代入すると
+
+$$
+\begin{aligned}
 \dot{\tilde{x}}_R
-=
-(A_R-HC_R)\tilde{x}_R
+&=(A_Rx_R+B_Rv_s)\\
+&\quad-\{A_R\hat{x}_R+B_Rv_s+H(y_R-C_R\hat{x}_R)\}\\
+&=A_R(x_R-\hat{x}_R)-H(y_R-C_R\hat{x}_R)
+\end{aligned}
+$$
+
+となる。真値モデルとオブザーバに同じ一次電圧 \(v_s\) を入れているため、\(B_Rv_s\) は差し引きで消える。
+
+ここで、無誤差時には測定出力が
+
+$$
+y_R=C_Rx_R
+$$
+
+であるため、
+
+$$
+y_R-C_R\hat{x}_R
+=C_R(x_R-\hat{x}_R)
+=C_R\tilde{x}_R
+$$
+
+である。したがって、
+
+$$
+\begin{aligned}
+\dot{\tilde{x}}_R
+&=A_R\tilde{x}_R-HC_R\tilde{x}_R\\
+&=(A_R-HC_R)\tilde{x}_R
+\end{aligned}
 $$
 
 となる。
