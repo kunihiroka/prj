@@ -1486,6 +1486,139 @@ R_{\sigma}=R_s+R_R
 \alpha=\frac{R_R}{L_M}
 ```
 
+ただし、これは必ず逆Gamma形へ変換してから実装しなければならない、という意味ではない。T形定数の組合せとして同じ係数を直接作れる。
+
+```math
+L_s=L_{ls}+M
+```
+
+```math
+L_r=L_{lr}+M
+```
+
+```math
+D=L_sL_r-M^2
+```
+
+T形の物理ロータ磁束を $\phi_r$ とすると、一次磁束は
+
+```math
+\psi_s
+=
+\left(L_s-\frac{M^2}{L_r}\right)i_s
++
+\frac{M}{L_r}\phi_r
+```
+
+である。したがって、
+
+```math
+L_{\sigma T}=\frac{D}{L_r}
+```
+
+```math
+\rho=\frac{M}{L_r}
+```
+
+と置けば、
+
+```math
+\psi_s=L_{\sigma T}i_s+\rho\phi_r
+```
+
+と書ける。Appendix Aの $\hat{\psi}_R$ は、T形の物理ロータ磁束 $\hat{\phi}_R$ そのものではなく、
+
+```math
+\hat{\psi}_R=\rho\hat{\phi}_R
+```
+
+である。この関係を使えば、逆Gamma形の名前を使わずに方式Cを書ける。
+
+T形定数だけで使う係数は以下である。
+
+```math
+R_{\Sigma T}=R_s+R_r\left(\frac{M}{L_r}\right)^2
+```
+
+```math
+\alpha_T=\frac{R_r}{L_r}
+```
+
+```math
+\gamma=\alpha_i-\alpha_T
+```
+
+```math
+k_1=\frac{b\alpha_T}{\alpha_T^2+\hat{\omega}_m^2}
+```
+
+```math
+k_2=\frac{b\hat{\omega}_m}{\alpha_T^2+\hat{\omega}_m^2}
+```
+
+T形の物理ロータ磁束 $\hat{\phi}_R$ を状態にする場合、方式Cの更新式は以下になる。
+
+```math
+L_{\sigma T}\frac{d\hat{i}_{sd}}{dt}
+=
+\alpha_T\rho\hat{\phi}_R
+-R_{\Sigma T}\hat{i}_{sd}
++\omega_sL_{\sigma T}\hat{i}_{sq}
++u_{sd}
++L_{\sigma T}(\gamma\tilde{i}_{sd}-\hat{\omega}_m\tilde{i}_{sq})
+```
+
+```math
+L_{\sigma T}\frac{d\hat{i}_{sq}}{dt}
+=
+-\hat{\omega}_m\rho\hat{\phi}_R
+-R_{\Sigma T}\hat{i}_{sq}
+-\omega_sL_{\sigma T}\hat{i}_{sd}
++u_{sq}
++L_{\sigma T}(\gamma\tilde{i}_{sq}+\hat{\omega}_m\tilde{i}_{sd})
+```
+
+```math
+\frac{d\hat{\phi}_R}{dt}
+=
+-\alpha_T\hat{\phi}_R
++\frac{R_rM}{L_r}\hat{i}_{sd}
++(k_1\alpha_i-\gamma)\frac{D}{M}\tilde{i}_{sd}
+-(\omega_s-\hat{\omega}_m)\frac{D}{M}\tilde{i}_{sq}
+```
+
+```math
+\omega_s
+=
+\hat{\omega}_m
++
+\frac{
+\frac{R_rM}{L_r}i_{sq}
++k_2\alpha_i\frac{D}{M}\tilde{i}_{sd}
+-\gamma\frac{D}{M}\tilde{i}_{sq}
+}{
+\hat{\phi}_R-\frac{D}{M}\tilde{i}_{sd}
+}
+```
+
+推定誤差が0なら、
+
+```math
+\omega_s-\hat{\omega}_m
+=
+\frac{(R_rM/L_r)i_{sq}}{\hat{\phi}_R}
+```
+
+となる。定常状態で $\hat{\phi}_R=Mi_{sd}$ なら、
+
+```math
+\omega_s-\hat{\omega}_m
+=
+\frac{R_r}{L_r}\frac{i_{sq}}{i_{sd}}
+```
+
+となり、通常のT形誘導機のすべり式に一致する。
+
 電流推定誤差を以下で定義する。
 
 ```math

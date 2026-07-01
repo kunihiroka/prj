@@ -584,6 +584,149 @@ R_{\sigma}=R_s+R_R
 \alpha=\frac{R_R}{L_M}
 ```
 
+ただし、実装上は必ずしも「逆Γ形等価回路へ変換した」と解釈する必要はない。T形定数だけで同じ式を直接書ける。まず、
+
+```math
+L_s=L_{ls}+M,\qquad
+L_r=L_{lr}+M,\qquad
+D=L_sL_r-M^2
+```
+
+とおく。T形の物理ロータ磁束を
+
+```math
+\phi_r=
+\begin{bmatrix}
+\phi_{rd} & \phi_{rq}
+\end{bmatrix}^{T}
+```
+
+とすると、一次磁束はインダクタンス行列から
+
+```math
+\psi_s
+=
+\left(L_s-\frac{M^2}{L_r}\right)i_s
++
+\frac{M}{L_r}\phi_r
+```
+
+と書ける。ここで
+
+```math
+L_{\sigma T}=\frac{D}{L_r},\qquad
+\rho=\frac{M}{L_r}
+```
+
+と定義すれば、
+
+```math
+\psi_s=L_{\sigma T}i_s+\rho\phi_r
+```
+
+である。SLED Appendix Aで使っているロータ磁束状態は、T形の物理ロータ磁束 $\phi_r$ そのものではなく、
+
+```math
+\psi_R=\rho\phi_R
+```
+
+である。したがって、逆Γ形定数を導入しなくても、T形定数から
+
+```math
+L_{\sigma T}=\frac{D}{L_r}
+```
+
+```math
+R_{\Sigma T}=R_s+R_r\left(\frac{M}{L_r}\right)^2
+```
+
+```math
+\alpha_T=\frac{R_r}{L_r}
+```
+
+を直接作ればよい。これは数値的には逆Γ形の $L_{\sigma},R_{\sigma},\alpha$ と同じであるが、等価回路定数を別名へ変換せず、T形定数の組合せとして扱っている点が異なる。
+
+さらに、状態としてスケーリング済み磁束 $\psi_R$ ではなく、T形の物理ロータ磁束 $\phi_R$ を持ちたい場合は、$\psi_R=\rho\phi_R$ をAppendix Aの式へ代入する。電流推定誤差を
+
+```math
+\tilde{i}_{sd}=i_{sd}-\hat{i}_{sd},\qquad
+\tilde{i}_{sq}=i_{sq}-\hat{i}_{sq}
+```
+
+とすると、T形物理ロータ磁束を状態にした方式Cは次のように書ける。
+
+```math
+L_{\sigma T}\frac{d\hat{i}_{sd}}{dt}
+=
+\alpha_T\rho\hat{\phi}_R
+-R_{\Sigma T}\hat{i}_{sd}
++\omega_sL_{\sigma T}\hat{i}_{sq}
++u_{sd}
++L_{\sigma T}(\gamma\tilde{i}_{sd}-\hat{\omega}_m\tilde{i}_{sq})
+```
+
+```math
+L_{\sigma T}\frac{d\hat{i}_{sq}}{dt}
+=
+-\hat{\omega}_m\rho\hat{\phi}_R
+-R_{\Sigma T}\hat{i}_{sq}
+-\omega_sL_{\sigma T}\hat{i}_{sd}
++u_{sq}
++L_{\sigma T}(\gamma\tilde{i}_{sq}+\hat{\omega}_m\tilde{i}_{sd})
+```
+
+```math
+\frac{d\hat{\phi}_R}{dt}
+=
+-\alpha_T\hat{\phi}_R
++\frac{R_rM}{L_r}\hat{i}_{sd}
++(k_1\alpha_i-\gamma)\frac{D}{M}\tilde{i}_{sd}
+-(\omega_s-\hat{\omega}_m)\frac{D}{M}\tilde{i}_{sq}
+```
+
+```math
+\omega_s
+=
+\hat{\omega}_m
++
+\frac{
+\frac{R_rM}{L_r}i_{sq}
++k_2\alpha_i\frac{D}{M}\tilde{i}_{sd}
+-\gamma\frac{D}{M}\tilde{i}_{sq}
+}{
+\hat{\phi}_R-\frac{D}{M}\tilde{i}_{sd}
+}
+```
+
+ここで設計パラメータは
+
+```math
+\gamma=\alpha_i-\alpha_T
+```
+
+```math
+k_1=\frac{b\alpha_T}{\alpha_T^2+\hat{\omega}_m^2},\qquad
+k_2=\frac{b\hat{\omega}_m}{\alpha_T^2+\hat{\omega}_m^2}
+```
+
+である。この形では、$L_M=M^2/L_r$ や $R_R=R_r(M/L_r)^2$ という逆Γ形の名前を使わない。すべて $R_s,R_r,L_{ls},L_{lr},M$ から直接計算できる。無誤差かつ推定誤差0の場合、すべり式は
+
+```math
+\omega_s-\hat{\omega}_m
+=
+\frac{(R_rM/L_r)i_{sq}}{\hat{\phi}_R}
+```
+
+となる。定常状態で $\hat{\phi}_R=Mi_{sd}$ なら、
+
+```math
+\omega_s-\hat{\omega}_m
+=
+\frac{R_r}{L_r}\frac{i_{sq}}{i_{sd}}
+```
+
+となり、T形誘導機の通常のロータ磁束基準すべり式に一致する。
+
 この座標系では、二次磁束ベクトルそのものをd/qの2成分で持つのではなく、推定ロータ磁束方向をd軸に選ぶ。したがって、推定ロータ磁束のq軸成分は常に0である。
 
 ```math
