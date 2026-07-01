@@ -1976,7 +1976,262 @@ b=2\zeta_{\infty}|\hat{\omega}_m|+\alpha
 | 分母下限を大きくする | 低磁束時の数値暴走は防げるが、厳密な拘束式からは離れる |
 | 推定角の積分を雑にする | dq変換の位相誤差となり、推定電流・磁束がずれる |
 
-## 17. まとめ
+## 17. 文献調査から見たゲイン設計法の系譜
+
+ここでは、同一次元磁束オブザーバのゲイン設計法を、文献調査に基づいて整理する。目的は、単に論文名を並べることではなく、組込み機器に載せるときにどの設計思想を選ぶべきかを見通せるようにすることである。
+
+同一次元オブザーバの基本形は、これまで説明した
+
+```math
+\dot{\hat{x}}=A(\omega)\hat{x}+Bu+H(y-C\hat{x})
+```
+
+である。推定誤差は
+
+```math
+\dot{\tilde{x}}=(A(\omega)-HC)\tilde{x}
+```
+
+に従う。ここで重要なのは、誘導機では $A(\omega)$ が速度で変わることである。したがって、ある速度で望みどおりの極を置く $H$ を設計しても、速度が変われば
+
+```math
+A(\omega)-HC
+```
+
+の極も変わる。すべての速度で同じ減衰や同じ安定余裕を得たいなら、本来は
+
+```math
+H=H(\omega)
+```
+
+でなければならない。
+
+しかし、一般の4状態オブザーバで毎制御周期に極配置計算を行うと、4行4列の線形代数計算が必要になる。制御周期が100 us程度の組込み機器では、この計算を毎周期行うのは重い。したがって文献上の主流は、以下のどれかである。
+
+1. 速度依存性を単純なスカラー関数へ押し込む。
+2. ゲインをオフラインで計算し、オンラインではテーブル参照にする。
+3. 安定性が証明できる構造化ゲインを使う。
+4. 閉形式の式を導出し、オンラインでは四則演算だけにする。
+
+### 17.1 電気学会・堀系: 極配置を低次元化する流れ
+
+国内文献でまず重要なのは、堀・Cotter・茅の電気学会論文誌B 1986年論文である。この論文は、誘導電動機の磁束オブザーバを制御理論の立場から整理し、電流モデル修正型、電圧モデル修正型、Gopinath型最小次元オブザーバを比較している。
+
+この系統の重要点は、誘導機のd/q軸対称性を使って、一般の行列ゲインを小さなパラメータ数へ落とすことである。代表例が
+
+```math
+K=k_1I+k_2J
+```
+
+である。展開すると
+
+```math
+K=
+\begin{bmatrix}
+k_1 & -k_2\\
+k_2 & k_1
+\end{bmatrix}
+```
+
+となる。これは、同相補正 $k_1$ と90度回転補正 $k_2$ だけで、d/q軸の対称性を保った補正を作る考え方である。
+
+この考え方の利点は明確である。毎周期に一般の極配置問題を解かなくても、速度と設計極から $k_1,k_2$ を計算すればよい。組込み実装では非常に軽い。一方で、この形式だけで任意の4状態同一次元オブザーバの全極を自由に置けるわけではない。どの状態を動的に持つか、どの誤差を補正するか、どのモデルを修正するかを含めて、オブザーバ構成とセットで使う必要がある。
+
+このため、堀系の結論は以下である。
+
+| 観点 | 評価 |
+|---|---|
+| 計算負荷 | 小さい。$k_1,k_2$ の計算に落とせる |
+| 理論の分かりやすさ | 極配置と物理モデルの関係が見えやすい |
+| 注意点 | 同一次元4状態の一般ゲイン $H$ を直接得る方法とは限らない |
+| 組込み候補 | 軽量実装の候補。ただし現代的な安定性評価と組み合わせたい |
+
+### 17.2 Kubota/Matsuse/Nakano系: DSP実装を意識した速度適応フルオーダオブザーバ
+
+Kubota, Matsuse, Nakanoの1993年論文は、DSP上で動く速度適応磁束オブザーバとしてよく参照される古典である。後続のHinkkanen/Harnefors系やSLED 2023論文でも、初期の代表的な速度適応フルオーダオブザーバとして引用されている。
+
+この系統の基本思想は、フルオーダ磁束オブザーバで磁束と電流を推定し、速度推定誤差を適応則で更新することである。構造は実用的で、DSP実装を意識している。一方で、低速回生領域では速度適応オブザーバが不安定になりやすいことが後続研究で問題になった。
+
+したがって、この系統は「実装実績のある出発点」と見るのがよい。
+
+| 観点 | 評価 |
+|---|---|
+| 計算負荷 | 実装可能な範囲を意識している |
+| 安定性 | 基本構造は有用だが、低速回生安定性は後続研究で補強が必要 |
+| 設計の見通し | ゲインと極・安定余裕の関係は必ずしも直感的でない |
+| 組込み候補 | そのまま採用より、後続の安定化設計と合わせて見るべき |
+
+### 17.3 Hinkkanen/Luomi, Harnefors/Hinkkanen系: 回生安定性と正実性を重視する流れ
+
+HinkkanenとLuomiの2004年論文は、センサレス誘導機ドライブの回生運転をフルオーダ磁束オブザーバ設計で安定化することを主題にしている。今回の議論で問題になっていた「回生側だけ不安定化しやすい」という現象に最も近い文献系統である。
+
+その後、Harneforsは2007年に速度適応オブザーバの大域安定性に関する短報を出し、HarneforsとHinkkanenは2008年に低次元および同一次元オブザーバの完全安定性を扱っている。さらに、Sangwongwanichらは正実性に基づく速度推定設計フレームワークを示している。
+
+この系統のキーワードは、
+
+- 回生運転
+- 低速領域
+- 正実性
+- 受動性
+- 完全安定性
+- 速度適応ループを含む安定性
+
+である。
+
+ここでの重要な考え方は、単に $A-HC$ の極を左半平面に置くだけでは不十分な場合がある、という点である。速度推定まで含めると、磁束推定誤差、電流推定誤差、速度推定誤差が結合する。したがって、
+
+```math
+A(\omega)-H(\omega)C
+```
+
+だけでなく、速度適応則まで含んだ拡大誤差系を見る必要がある。
+
+この系統の結論は以下である。
+
+| 観点 | 評価 |
+|---|---|
+| 計算負荷 | 設計式による。単純な閉形式とは限らない |
+| 安定性 | 最も重視されている。回生・低速の説明に強い |
+| 設計の見通し | 正実性や受動性の理解が必要で、初学者にはやや難しい |
+| 組込み候補 | 安定性条件を満たすゲインを、テーブル化または閉形式化できれば有力 |
+
+### 17.4 Qu/Hinkkanen/Harnefors系: ゲインスケジューリング
+
+Qu, Hinkkanen, Harneforsの2014年論文は、フルオーダオブザーバのゲインスケジューリングを扱う。これは、今回の問題意識にかなり直接対応している。
+
+考え方はシンプルである。
+
+1. オフラインで、速度や動作点ごとに望ましいオブザーバゲインを計算する。
+2. 組込み機器にはゲインテーブルを持たせる。
+3. 実行時は速度や動作点に応じてテーブル参照、必要なら補間を行う。
+
+この方法では、オンラインで重い極配置やRiccati方程式を解く必要がない。必要な計算は、テーブル参照と補間で済む。これは組込み実装として非常に現実的である。
+
+一方で、欠点もある。テーブルの次元が増えるとメモリを食う。速度だけでなく、磁束、トルク、弱め界磁、電圧制限状態まで含めると、テーブル設計が複雑になる。また、テーブル外挿領域の安定性をどう保証するかも課題になる。
+
+| 観点 | 評価 |
+|---|---|
+| 計算負荷 | 小さい。オンラインは参照と補間 |
+| メモリ | テーブル次第で増える |
+| 安定性 | オフライン設計点では確認しやすい。点間補間と外挿に注意 |
+| 組込み候補 | 実務的には非常に有力 |
+
+### 17.5 LQR/LUT系: 重い設計をオフラインへ逃がす流れ
+
+KullickとHacklの2018年論文は、LCフィルタ付き誘導機を対象に、オブザーバゲインと制御ゲインをLQRでオフライン設計し、オンラインではゲインスケジューリングで更新する構成を使っている。
+
+この方式は、閉形式の美しさよりも実務性を重視している。設計時にRiccati方程式などの重い計算を行い、実機ではテーブル参照にする。オブザーバ対象がLCフィルタ込みで高次元になる場合でも、同じ考え方を使える。
+
+この方式の価値は、「厳密な閉形式を探し続けるより、オフライン設計とLUT化で十分実用になる場合がある」ことを示している点である。
+
+| 観点 | 評価 |
+|---|---|
+| 計算負荷 | オンラインは小さい |
+| 設計自由度 | 高い。LQR重みで調整できる |
+| 理論の見通し | 重みと極の関係が直感的でない場合がある |
+| 組込み候補 | テーブル設計と検証プロセスを整備できるなら有力 |
+
+### 17.6 Tiitinen/Hinkkanen/Harnefors 2023: 閉形式フルオーダオブザーバ
+
+SLED 2023のTiitinen, Hinkkanen, Harnefors論文は、近年の有力な到達点である。この論文は、速度適応フルオーダオブザーバを再検討し、磁束推定ダイナミクスを速度推定から分離するゲインを提案している。
+
+この方式の特徴は、フルオーダオブザーバのゲインを、少数の設計パラメータと速度の関数として閉形式で与える点である。論文では、フルオーダオブザーバを
+
+```math
+\frac{d\hat{\psi}_s}{dt}
+=
+-\omega_sJ\hat{\psi}_s
+-R_s\hat{i}_s
+u_s
+K_{\psi}\tilde{i}_s
+```
+
+```math
+L_{\sigma}\frac{d\hat{i}_s}{dt}
+=
+(\alpha I-\hat{\omega}_mJ)\hat{\psi}_s
+-L_{\sigma}(\beta I+\hat{\omega}_rJ)\hat{i}_s
+u_s
+K_i\tilde{i}_s
+```
+
+の形で書き、ゲインを
+
+```math
+K_{\psi}=\alpha_iL_{\sigma}K-R_sI
+```
+
+```math
+K_i=L_{\sigma}[(\alpha_i-\beta)I-\hat{\omega}_rJ]
+```
+
+のように与える。ここで $\alpha_i$ は電流推定誤差の減衰を決める設計パラメータであり、$K$ は磁束推定モードを決める行列である。
+
+この式の $\beta$ はSLED論文の記号で、逆Gamma形モデルの電流方程式に出てくる係数である。論文では
+
+```math
+\beta=\frac{R_s}{L_{\sigma}}+\omega_{rb}
+```
+
+```math
+\omega_{rb}
+=
+\left(
+\frac{1}{L_M}
++
+\frac{1}{L_{\sigma}}
+\right)R_R
+```
+
+と定義される。ここでも重要なのは、$K_{\psi}$ と $K_i$ が一般の数値極配置で得られる任意行列ではなく、モータ定数、速度推定値、少数の設計パラメータから直接計算される構造化ゲインだという点である。
+
+この方式の強い点は、ゲインの形が閉形式であり、オンラインで重い行列方程式を解かないことである。さらに、速度適応まで含む誤差ダイナミクスの特性多項式が整理されており、設計パラメータと安定性の関係が比較的見やすい。
+
+組込み実装では、毎周期に必要なのは主に
+
+- 速度に依存するスカラー係数の計算
+- 2行2列の $I,J$ 型行列の合成
+- 電流誤差注入
+
+である。これは一般の4行4列極配置よりかなり軽い。
+
+| 観点 | 評価 |
+|---|---|
+| 計算負荷 | 小さい。閉形式ゲイン |
+| 安定性 | 速度適応を含む解析がある |
+| 設計の見通し | $\alpha_i,b$ などの設計パラメータに意味がある |
+| 組込み候補 | 現時点で最有力候補 |
+
+### 17.7 どの方向を選ぶべきか
+
+今回の目的は、同一次元磁束オブザーバを組込み機器に載せることである。そのため、重要な条件は以下である。
+
+1. オンライン計算が軽い。
+2. 速度変化に対してゲインを更新できる。
+3. 回生・低速領域の安定性を説明できる。
+4. 設計パラメータの意味を説明できる。
+5. 実機でテストする前に、シミュレーションで安定余裕を評価できる。
+
+この条件で見ると、方向性は以下になる。
+
+| 候補 | 採用方針 |
+|---|---|
+| 毎周期Sylvester極配置 | 理解用・検証用。量産組込みには重い |
+| 堀5.3型 $k_1,k_2$ | 軽量な基準方式。国内文献の流れとして重要 |
+| Kubota型古典速度適応FOO | 古典実装の基準。単独採用より後続安定化設計と比較 |
+| Hinkkanen/Harnefors安定化設計 | 回生・低速安定性の理論基盤 |
+| Qu型ゲインスケジューリング | 実務的候補。LUT化できるなら強い |
+| LQR/LUT | 高次元モデルや周辺回路込みには有力 |
+| SLED 2023閉形式 | 現時点の本命。閉形式、軽量、安定性説明のバランスが良い |
+
+したがって、次に実装するなら、いきなり独自式を作るより、以下の2本立てがよい。
+
+1. SLED 2023のフルオーダ閉形式ゲインを、論文本体の式に忠実に実装する。
+2. Qu/Hinkkanen/Harnefors型のゲインスケジューリングを、比較用としてLUT実装する。
+
+この2つを比較すれば、閉形式方式とLUT方式のどちらが実機組込みに向いているかを判断できる。堀5.3型は、国内文献に基づく軽量方式として比較軸に残す価値がある。
+
+## 18. まとめ
 
 磁束オブザーバの理解で重要なのは、以下の流れである。
 
@@ -1993,8 +2248,18 @@ b=2\zeta_{\infty}|\hat{\omega}_m|+\alpha
 
 方式Aは、状態空間と極配置の考え方を理解するのに適している。方式Bは、論文5.3節に沿った軽量な二次磁束オブザーバとして実装しやすい。方式Cは、組込み実装の計算負荷を下げる実用的な方式として有力である。ただし、方式Cではオブザーバ構成とすべり周波数計算式が一体であるため、$\omega_s$ の式を単なる外部すべり推定式として扱ってはいけない。
 
+文献調査の観点では、量産組込みへ進める場合、SLED 2023の閉形式フルオーダオブザーバと、Qu/Hinkkanen/Harnefors型のゲインスケジューリングを中心に検討するのが自然である。堀5.3型は、国内文献に基づく軽量な比較方式として残すのがよい。
+
 ## 参考文献
 
 1. 堀 洋一, Vincent Cotter, 茅 陽一, 「誘導電動機の磁束オブザーバに関する制御理論的考察」, 電気学会論文誌B, 106巻, 11号, pp.1001-1008, 1986. [J-STAGE PDF](https://www.jstage.jst.go.jp/article/ieejpes1972/106/11/106_11_1001/_pdf)
-2. Lauri Tiitinen, Marko Hinkkanen, Lennart Harnefors, "Speed-Adaptive Full-Order Observer Revisited: Closed-Form Design for Induction Motor Drives", 2023 IEEE International Symposium on Sensorless Control for Electrical Drives (SLED), 2023.
-3. 本リポジトリの実装: [c/flux_observer.c](c/flux_observer.c), [c/sled23_flux_observer.c](c/sled23_flux_observer.c).
+2. G. C. Verghese and S. R. Sanders, "Observers for Flux Estimation in Induction Machines", IEEE Transactions on Industrial Electronics, vol. 35, no. 1, pp. 85-94, 1988.
+3. H. Kubota, K. Matsuse, and T. Nakano, "DSP-Based Speed Adaptive Flux Observer of Induction Motor", IEEE Transactions on Industry Applications, vol. 29, no. 2, pp. 344-348, 1993.
+4. M. Hinkkanen and J. Luomi, "Stabilization of Regenerating-Mode Operation in Sensorless Induction Motor Drives by Full-Order Flux Observer Design", IEEE Transactions on Industrial Electronics, vol. 51, no. 6, pp. 1318-1328, 2004.
+5. L. Harnefors, "Globally Stable Speed-Adaptive Observers for Sensorless Induction Motor Drives", IEEE Transactions on Industrial Electronics, vol. 54, no. 2, pp. 1243-1245, 2007.
+6. S. Sangwongwanich, S. Suwankawin, S. Po-ngam, and S. Koonlaboon, "A Unified Speed Estimation Design Framework for Sensorless AC Motor Drives Based on Positive-Real Property", PCC-Nagoya, pp. 1111-1118, 2007.
+7. L. Harnefors and M. Hinkkanen, "Complete Stability of Reduced-Order and Full-Order Observers for Sensorless IM Drives", IEEE Transactions on Industrial Electronics, vol. 55, no. 3, pp. 1319-1329, 2008.
+8. Z. Qu, M. Hinkkanen, and L. Harnefors, "Gain Scheduling of a Full-Order Observer for Sensorless Induction Motor Drives", IEEE Transactions on Industry Applications, vol. 50, no. 6, pp. 3834-3845, 2014.
+9. Julian Kullick and Christoph M. Hackl, "Speed-Sensorless State Feedback Control of Induction Machines With LC Filter", arXiv:1807.11799, 2018.
+10. Lauri Tiitinen, Marko Hinkkanen, Lennart Harnefors, "Speed-Adaptive Full-Order Observer Revisited: Closed-Form Design for Induction Motor Drives", 2023 IEEE International Symposium on Sensorless Control for Electrical Drives (SLED), 2023.
+11. 本リポジトリの実装: [c/flux_observer.c](c/flux_observer.c), [c/sled23_flux_observer.c](c/sled23_flux_observer.c).
