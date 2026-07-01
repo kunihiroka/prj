@@ -10,7 +10,7 @@ H \in \mathbb{R}^{4\times 2}
 
 として設計する。したがって、4状態に対応する4個のオブザーバ極をすべて明示的に配置する。
 
-実装ではゲイン設計方式を切り替え可能にした。方式Aは「4個の実極を直接指定する4状態Sylvester方式」、方式Bは堀ほか1986年論文5.3節に忠実な「モデル修正型ロータ磁束オブザーバ」、方式CはSLED 2023 Appendix AをT形物理二次磁束で書いた閉形式方式、方式D1はKubota/Matsuse 1991の `k` 倍極配置を推定二次磁束d軸座標へ移植した方式である。現時点の採用方針は、D1を第1有力方式、CのT型を第2有力方式とする。方式D1/C_Tはいずれも推定二次磁束をd軸に取る回転座標上で実装し、すべり周波数はオブザーバ内部のq軸二次磁束拘束から計算する。
+実装ではゲイン設計方式を切り替え可能にした。方式Aは「4個の実極を直接指定する4状態Sylvester方式」、方式Bは堀ほか1986年論文5.3節に忠実な「モデル修正型ロータ磁束オブザーバ」、方式CはSLED 2023 Appendix AをT形物理二次磁束で書いた閉形式方式、方式D1はKubota/Matsuse 1991の `k` 倍極配置を推定二次磁束d軸座標へ移植した方式、方式Eは安川電機/Takase 2023のゲインスケジューリング型適応二次磁束オブザーバである。現時点の採用方針は、D1を第1有力方式、CのT型を第2有力方式とする。方式D1/C_Tはいずれも推定二次磁束をd軸に取る回転座標上で実装し、すべり周波数はオブザーバ内部のq軸二次磁束拘束から計算する。方式Eは論文原式に合わせ、固定αβ座標で一次電流と二次磁束を推定する比較方式として実装した。
 
 使用した誘導機定数は以下である。
 
@@ -29,7 +29,7 @@ H \in \mathbb{R}^{4\times 2}
 L_s=L_{ls}+M,\qquad L_r=L_{lr}+M,\qquad D=L_sL_r-M^2
 ```
 
-方式Aの詳細評価は [scripts/run_flux_observer_evaluation.py](scripts/run_flux_observer_evaluation.py) に、A/B/C_T/D1の共通評価は [scripts/run_gain_design_comparison.py](scripts/run_gain_design_comparison.py) にまとめている。C言語実装は [c/flux_observer.c](c/flux_observer.c)、[c/flux_observer.h](c/flux_observer.h)、[c/sled23_t_flux_observer.c](c/sled23_t_flux_observer.c)、[c/sled23_t_flux_observer.h](c/sled23_t_flux_observer.h)、[c/kubota_d1_flux_observer.c](c/kubota_d1_flux_observer.c)、[c/kubota_d1_flux_observer.h](c/kubota_d1_flux_observer.h) に置いた。
+方式Aの詳細評価は [scripts/run_flux_observer_evaluation.py](scripts/run_flux_observer_evaluation.py) に、A/B/C_T/D1/Eの共通評価は [scripts/run_gain_design_comparison.py](scripts/run_gain_design_comparison.py) にまとめている。C言語実装は [c/flux_observer.c](c/flux_observer.c)、[c/flux_observer.h](c/flux_observer.h)、[c/sled23_t_flux_observer.c](c/sled23_t_flux_observer.c)、[c/sled23_t_flux_observer.h](c/sled23_t_flux_observer.h)、[c/kubota_d1_flux_observer.c](c/kubota_d1_flux_observer.c)、[c/kubota_d1_flux_observer.h](c/kubota_d1_flux_observer.h)、[c/yaskawa_e_flux_observer.c](c/yaskawa_e_flux_observer.c)、[c/yaskawa_e_flux_observer.h](c/yaskawa_e_flux_observer.h) に置いた。
 
 初学者向けに、式変形とゲイン設計をより丁寧に追った補足資料を [flux_observer_beginner_guide.md](flux_observer_beginner_guide.md) に作成した。SLED方式を逆Gamma形ではなくT形の一般状態方程式から導く手順、SLED方式の推定二次磁束d軸座標でのゲイン要素、およびKubota/Matsuse型 `k` 倍極配置ゲインを推定二次磁束d軸座標へ移植する式は、この補足資料の12章と17.2.5節にまとめた。
 
@@ -983,9 +983,149 @@ a_{r21}\hat{i}_{sq}
 
 に一致する。D1は毎周期の計算が軽い一方、`k` を大きくすれば常に良いわけではない。本評価では、5000 r/min回生の初期誤差付き評価を含めて安定に収束した `k=1.2` をデフォルトとした。C実装は [c/kubota_d1_flux_observer.c](c/kubota_d1_flux_observer.c) と [c/kubota_d1_flux_observer.h](c/kubota_d1_flux_observer.h) に追加した。
 
-### 3.7 方式比較と採用方針
+### 3.7 方式E: 安川電機/Takase 2023ゲインスケジューリング方式
 
-本資料では、以下の4方式を実装した。
+方式Eは、安川電機/Takase 2023の「ゲインスケジューリングを伴う適応二次磁束オブザーバ」に従う方式である。論文の主目的は低速センサレス制御であり、ポポフの超安定論とKalman-Yakubovichの補題に基づいて速度適応を安定化しやすいオブザーバゲインを選ぶ点に特徴がある。本実装では速度適応器そのものではなく、論文の二次磁束オブザーバゲイン式を実装・評価した。
+
+論文原式は固定αβ座標で書かれている。状態は一次電流と二次磁束である。
+
+```math
+X=
+\begin{bmatrix}
+i_s\\
+\phi_r
+\end{bmatrix},
+\qquad
+i_s=
+\begin{bmatrix}
+i_\alpha\\
+i_\beta
+\end{bmatrix},
+\qquad
+\phi_r=
+\begin{bmatrix}
+\phi_{r\alpha}\\
+\phi_{r\beta}
+\end{bmatrix}
+```
+
+固定座標の誘導機モデルは以下である。
+
+```math
+\dot{X}=AX+Bv_s
+```
+
+```math
+A=
+\begin{bmatrix}
+A_{11} & A_{12}\\
+A_{21} & -\epsilon A_{12}
+\end{bmatrix},
+\qquad
+B=
+\begin{bmatrix}
+B_1\\
+0
+\end{bmatrix}
+```
+
+```math
+A_{11}
+=
+-\frac{R_s+R_rM^2/L_r^2}{\sigma L_s}I_2
+```
+
+```math
+A_{12}
+=
+\frac{M}{\sigma L_sL_r}
+\left(
+\frac{R_r}{L_r}I_2-\omega_mJ
+\right)
+```
+
+```math
+A_{21}
+=
+\frac{MR_r}{L_r}I_2,
+\qquad
+B_1=\frac{1}{\sigma L_s}I_2
+```
+
+```math
+\epsilon=\frac{\sigma L_sL_r}{M},
+\qquad
+\sigma=1-\frac{M^2}{L_sL_r}
+```
+
+オブザーバは以下で構成する。
+
+```math
+\dot{\hat{X}}
+=
+\hat{A}\hat{X}+Bv_s+G(\hat{i}_s-i_s)
+```
+
+補正ゲインは4つのスカラー $G_1,G_2,G_3,G_4$ で構成する。
+
+```math
+G=
+\begin{bmatrix}
+G_1I_2+G_2J\\
+G_3I_2+G_4J
+\end{bmatrix}
+```
+
+安川/Takase論文の式(11)に従い、ゲインを以下で計算する。
+
+```math
+T_2=\frac{L_r}{R_r}
+```
+
+```math
+G_1
+=
+\left(
+-\frac{2}{T_2}
++\frac{R_s}{\sigma L_s}
++\frac{R_r}{\sigma L_r}
+\right)K_1
+```
+
+```math
+G_2=0
+```
+
+```math
+G_3
+=
+\left(
+-\epsilon G_1
+-\epsilon\frac{R_r}{L_r}
++\frac{R_sL_r}{M}
+\right)K_2
+```
+
+```math
+G_4
+=
+(-\epsilon\omega_m)K_2
+```
+
+$K_1,K_2$ は速度に対するスケジュール係数である。論文では $K_1$ を定格速度の10%から15%で1から0へ、$K_2$ を30%から50%で1から0へ変化させる。今回の評価とC実装では、定格速度のデフォルトを5000 r/minとし、以下を標準値にした。
+
+| 係数 | 1から0へ変化する速度範囲 |
+|---|---:|
+| $K_1$ | 定格速度の10%から15% |
+| $K_2$ | 定格速度の30%から50% |
+
+低速では式(8)相当の強い補正を使い、中速では式(9)相当に移り、高速では式(10)相当、すなわち電圧モデル寄りに戻る。これは低速センサレス安定化を目的にした設計であり、D1/C_Tのように推定二次磁束d軸座標で滑り周波数を内部計算する構成とは目的が異なる。
+
+評価スクリプトでは、他方式の誤差条件と同じdq定常動作点から真値の固定αβ波形を作り、E式の固定座標オブザーバへ入力した。5000 r/minでは固定座標の電圧・電流ベクトルが約333 Hzで回転するため、E式のPython評価だけは4次Runge-Kuttaで積分して離散化誤差を抑えた。C実装は [c/yaskawa_e_flux_observer.c](c/yaskawa_e_flux_observer.c) と [c/yaskawa_e_flux_observer.h](c/yaskawa_e_flux_observer.h) に追加した。
+
+### 3.8 方式比較と採用方針
+
+本資料では、以下の5方式を実装した。
 
 | 方式 | 概要 | 主な用途 |
 |---|---|---|
@@ -993,19 +1133,21 @@ a_{r21}\hat{i}_{sq}
 | 方式B | 堀ほか1986年論文5.3節のモデル修正型ロータ磁束オブザーバ。$K=k_1I+k_2J$ を論文式から計算する | 論文5.3節の再現、軽量なalpha/beta極配置 |
 | 方式C_T | SLED 2023 Appendix AをT形物理二次磁束 $\hat{\phi}_r$ で書き直した閉形式方式 | 第2有力候補、オンライン実装 |
 | 方式D1 | Kubota/Matsuse 1991の誘導機固有極 `k` 倍配置を推定二次磁束d軸座標へ移植 | 第1有力候補、軽量オンライン実装 |
+| 方式E | 安川電機/Takase 2023のゲインスケジューリング型適応二次磁束オブザーバ。論文原式どおり固定αβ座標で実装 | 低速センサレス安定化系の比較候補、ゲインスケジューリング参考 |
 
 結論から言うと、現時点では方式D1を第1有力方式、方式C_Tを第2有力方式とする。
 
 理由は以下である。
 
-| 評価観点 | 方式D1: Kubota/Matsuse k倍 | 方式C_T: SLED T形 | 方式A: 4実極Sylvester | 方式B: Hori 5.3 |
-|---|---|---|---|---|
-| 採用順位 | 第1有力 | 第2有力 | 検証基準 | 比較用 |
-| ゲイン計算 | `k` だけで `g1..g4` を閉形式計算 | $\alpha_i,b,k_1,k_2$ を閉形式計算 | 16元連立一次方程式 | $k_1,k_2$ を閉形式計算 |
-| 毎周期計算負荷 | 最も軽い部類。スカラー式中心 | 軽い。ただしD1より項数は多い | 重い | 軽い |
-| 状態 | $\hat{i}_{sd},\hat{i}_{sq},\hat{\phi}_r$ | $\hat{i}_{sd},\hat{i}_{sq},\hat{\phi}_r$ | $\hat{\psi}_{sd},\hat{\psi}_{sq},\hat{\psi}_{rd},\hat{\psi}_{rq}$ | $\hat{\psi}_{rd},\hat{\psi}_{rq}$ |
-| すべり計算 | $\dot{\hat{\phi}}_{rq}=0$ から代数計算 | $\dot{\hat{\phi}}_{rq}=0$ から代数計算 | 外部から与える | 外部から与える |
-| 注意点 | `k` 選定に敏感。今回定数では `k=1.5` は高速回生で別平衡点へ入りやすく、評価では `k=1.2` を採用 | 分母 $\hat{\phi}_r-(D/M)\tilde{i}_{sd}$ の保護が必要 | 毎周期オンライン設計には不向き | 一次電流を独立に推定しない |
+| 評価観点 | 方式D1: Kubota/Matsuse k倍 | 方式C_T: SLED T形 | 方式E: Yaskawa GS | 方式A: 4実極Sylvester | 方式B: Hori 5.3 |
+|---|---|---|---|---|---|
+| 採用順位 | 第1有力 | 第2有力 | 比較候補 | 検証基準 | 比較用 |
+| ゲイン計算 | `k` だけで `g1..g4` を閉形式計算 | $\alpha_i,b,k_1,k_2$ を閉形式計算 | $K_1,K_2$ と `G1..G4` を閉形式計算 | 16元連立一次方程式 | $k_1,k_2$ を閉形式計算 |
+| 毎周期計算負荷 | 最も軽い部類。スカラー式中心 | 軽い。ただしD1より項数は多い | 軽い。速度スケジュールとスカラー式中心 | 重い | 軽い |
+| 状態 | $\hat{i}_{sd},\hat{i}_{sq},\hat{\phi}_r$ | $\hat{i}_{sd},\hat{i}_{sq},\hat{\phi}_r$ | $\hat{i}_{s\alpha},\hat{i}_{s\beta},\hat{\phi}_{r\alpha},\hat{\phi}_{r\beta}$ | $\hat{\psi}_{sd},\hat{\psi}_{sq},\hat{\psi}_{rd},\hat{\psi}_{rq}$ | $\hat{\psi}_{rd},\hat{\psi}_{rq}$ |
+| 座標系 | 推定二次磁束d軸 | 推定二次磁束d軸 | 固定αβ | 回転dq | 回転dq等価 |
+| すべり計算 | $\dot{\hat{\phi}}_{rq}=0$ から代数計算 | $\dot{\hat{\phi}}_{rq}=0$ から代数計算 | 論文では速度適応系と組み合わせる。本評価では速度を入力 | 外部から与える | 外部から与える |
+| 注意点 | `k` 選定に敏感。今回定数では `k=1.5` は高速回生で別平衡点へ入りやすく、評価では `k=1.2` を採用 | 分母 $\hat{\phi}_r-(D/M)\tilde{i}_{sd}$ の保護が必要 | 固定座標なので高速では積分刻み・離散化に注意。低速センサレス向け論文式 | 毎周期オンライン設計には不向き | 一次電流を独立に推定しない |
 
 方式Aの最大の利点は、回転dq座標の実数4状態モデルに対して「指定した4極が本当に入る」ことを直接確認できる点である。したがって、理論確認、ベンチマーク、あるいはゲインテーブルをオフライン生成する用途には適している。一方で、組込み機器で毎制御周期に実行するには計算負荷が大きい。制御周期が $100\ \mu\mathrm{s}$ 程度の場合、16元連立一次方程式を毎回解く設計は避けたい。
 
@@ -1015,12 +1157,15 @@ a_{r21}\hat{i}_{sq}
 
 方式D1は、Kubota/Matsuse 1991の `k` 倍極配置を推定二次磁束d軸座標へ移植したものである。`g1..g4` はスカラー式で計算でき、組込み実装上は非常に軽い。一方、`k` を大きくすれば常に良いわけではない。今回の定数では `k=1.5` とすると5000 r/min回生の初期誤差付き評価で真値ではない平衡点へ入りやすかったため、評価とC実装のデフォルトは `k=1.2` とした。`k` はAPIで変更可能にしている。
 
+方式Eは、安川電機/Takase 2023の低速センサレス安定化を狙ったゲインスケジューリング方式である。ゲイン計算は軽く、$K_1,K_2$ のスケジュールにより低速では補正を強め、高速では電圧モデル寄りに戻す。今回の評価では無誤差・誤差ありとも発散はなかった。ただし、固定αβ座標で実装するため高速域では離散化誤差に敏感であり、D1/C_Tと同じ「推定二次磁束d軸座標で滑りを内部計算する候補」とは分類が異なる。したがって本資料では本命候補ではなく、低速センサレス・ゲインスケジューリング系の比較候補として扱う。
+
 したがって、本成果物の採用方針は以下とする。
 
 1. 第1有力方式はD1とする。理由は計算負荷が小さく、ゲイン更新が速度のスカラー関数で済むためである。ただし `k` の上限と回生時の別平衡点回避は追加検証する。
 2. 第2有力方式はC_Tとする。理由は評価結果が安定で、SLED 2023の閉形式設計に基づき、推定二次磁束d軸座標との整合がよいからである。
 3. 方式Aは、方式D1/C_Tの妥当性確認、オフライン設計、またはゲインテーブル生成用の基準モデルとして残す。
 4. 方式Bは、国内文献5.3節との比較方式として残す。ただし一次電流を独立に推定する方式ではないため、今回の同一次元オブザーバ候補からは外す。
+5. 方式Eは、安川電機論文のゲインスケジューリング設計を評価する比較候補として残す。低速センサレス制御系へ組み込む場合は、速度適応器とセットで再評価する。
 
 ただし、D1/C_Tを採用する場合も、推定ロータ磁束座標への入力電圧・入力電流変換、低速・低磁束時の分母保護、定数誤差時の閉ループ安定性は別途検証が必要である。今回の評価では5000 r/min力行、5000 r/min回生、1000 r/min回生の3条件で収束を確認したが、低速センサレス運転や弱め界磁領域まで含めた評価は、制御系全体に組み込んだ状態で実施する必要がある。
 
@@ -1094,7 +1239,7 @@ $A_o-HC_o$ がHurwitz、すなわち全固有値の実部が負であり、$d(t)
 
 ### 5.1 評価方法
 
-評価は2種類のスクリプトで行った。方式Aの詳細波形と誤差掃引は従来の評価スクリプトで確認し、方式D1/C_T/A/Bの横並び比較は共通評価スクリプトで行った。
+評価は2種類のスクリプトで行った。方式Aの詳細波形と誤差掃引は従来の評価スクリプトで確認し、方式D1/C_T/E/A/Bの横並び比較は共通評価スクリプトで行った。
 
 ```powershell
 python .\flux_observer_design\scripts\run_flux_observer_evaluation.py
@@ -1106,15 +1251,15 @@ python .\flux_observer_design\scripts\run_gain_design_comparison.py
 | ファイル | 内容 |
 |---|---|
 | [data/evaluation_summary.csv](data/evaluation_summary.csv) | 全評価ケースの数値結果 |
-| [data/gain_design_comparison_summary.csv](data/gain_design_comparison_summary.csv) | 方式D1/C_T/A/Bを同一条件で評価した全数値結果 |
-| [data/gain_design_nominal_comparison.csv](data/gain_design_nominal_comparison.csv) | 無誤差時の4方式比較 |
+| [data/gain_design_comparison_summary.csv](data/gain_design_comparison_summary.csv) | 方式D1/C_T/E/A/Bを同一条件で評価した全数値結果 |
+| [data/gain_design_nominal_comparison.csv](data/gain_design_nominal_comparison.csv) | 無誤差時の5方式比較 |
 | [data/gain_design_worst_error_comparison.csv](data/gain_design_worst_error_comparison.csv) | 5000 r/min, -220 Nm条件の最悪誤差比較 |
 | [figures/nominal_waveform_5000rpm_motoring.png](figures/nominal_waveform_5000rpm_motoring.png) | 5000 r/min力行の無誤差波形 |
 | [figures/nominal_waveform_5000rpm_regen.png](figures/nominal_waveform_5000rpm_regen.png) | 5000 r/min回生の無誤差波形 |
 | [figures/nominal_waveform_1000rpm_regen.png](figures/nominal_waveform_1000rpm_regen.png) | 1000 r/min回生の無誤差波形 |
 | [figures/nominal_convergence.png](figures/nominal_convergence.png) | 3動作点の収束誤差 |
-| [figures/gain_design_nominal_convergence.png](figures/gain_design_nominal_convergence.png) | 方式D1/C_T/A/Bの無誤差収束比較 |
-| [figures/gain_design_worst_error_summary.png](figures/gain_design_worst_error_summary.png) | 方式D1/C_T/A/Bの最悪誤差比較 |
+| [figures/gain_design_nominal_convergence.png](figures/gain_design_nominal_convergence.png) | 方式D1/C_T/E/A/Bの無誤差収束比較 |
+| [figures/gain_design_worst_error_summary.png](figures/gain_design_worst_error_summary.png) | 方式D1/C_T/E/A/Bの最悪誤差比較 |
 | [figures/parameter_error_sweep.png](figures/parameter_error_sweep.png) | 定数誤差感度 |
 | [figures/sensor_error_summary.png](figures/sensor_error_summary.png) | 電圧・電流誤差感度 |
 
@@ -1123,16 +1268,17 @@ python .\flux_observer_design\scripts\run_gain_design_comparison.py
 | 項目 | 値 |
 |---|---:|
 | シミュレーション時間 | $0.12\ \mathrm{s}$ |
-| 積分刻み | $10\ \mu\mathrm{s}$ |
+| 積分刻み | $10\ \mu\mathrm{s}$。固定αβ座標の方式Eは評価時にRK4積分 |
 | 初期推定誤差 | 一次・二次磁束に大きな初期誤差を付与 |
 | 誤差評価窓 | 最終20%区間のRMS |
 
-比較した4方式の設計値は以下である。
+比較した5方式の設計値は以下である。
 
 | 方式 | 設計値 |
 |---|---|
 | 方式D1 | Kubota/Matsuse `k` 倍極配置。評価デフォルトは $k=1.2$ |
 | 方式C_T | SLED 2023 Appendix AのT形物理二次磁束版。$\alpha_i=1000\ \mathrm{rad/s}$, $\zeta_{\infty}=0.4$ |
+| 方式E | 安川電機/Takase 2023式。定格速度5000 r/min、$K_1$: 10%から15%、$K_2$: 30%から50%で1から0へスケジュール |
 | 方式A | $-2200,-2750,-3410,-4400\ \mathrm{rad/s}$ の4実極 |
 | 方式B | 論文5.3節の $K=k_1I+k_2J$。$\alpha=2200\ \mathrm{rad/s}$, $\beta=500\ \mathrm{rad/s}$ |
 
@@ -1154,28 +1300,31 @@ python .\flux_observer_design\scripts\run_gain_design_comparison.py
 
 ### 5.2 無誤差時の収束
 
-無誤差では、4方式とも3動作点すべてで推定値が真値へ収束した。方式D1/C_Tは推定二次磁束d軸座標上の3状態オブザーバであり、二次磁束q軸を0に拘束するように座標角速度を内部計算する。方式Aは $\omega_k=p\omega_m+\omega_{\mathrm{slip}}$ で回る回転dq座標の4状態磁束オブザーバ、方式Bは論文5.3節の二次磁束オブザーバを回転dq座標へ等価変換したものである。方式Bでは一次電流推定値が測定一次電流に一致するため、一次電流誤差は測定誤差を表す点に注意する。
+無誤差では、5方式とも3動作点すべてで推定値が真値へ収束した。方式D1/C_Tは推定二次磁束d軸座標上の3状態オブザーバであり、二次磁束q軸を0に拘束するように座標角速度を内部計算する。方式Eは固定αβ座標で一次電流と二次磁束を推定する。方式Aは $\omega_k=p\omega_m+\omega_{\mathrm{slip}}$ で回る回転dq座標の4状態磁束オブザーバ、方式Bは論文5.3節の二次磁束オブザーバを回転dq座標へ等価変換したものである。方式Bでは一次電流推定値が測定一次電流に一致するため、一次電流誤差は測定誤差を表す点に注意する。
 
 | 方式 | 条件 | 二次磁束RMS誤差 | 一次電流RMS誤差 | 二次磁束1%収束 | 一次電流1A収束 |
 |---|---|---:|---:|---:|---:|
 | 方式D1 | 5000 r/min, +220 Nm | $4.77\times10^{-8}\%$ | $7.72\times10^{-7}\ \mathrm{A}$ | $18.22\ \mathrm{ms}$ | $33.73\ \mathrm{ms}$ |
 | 方式C_T | 5000 r/min, +220 Nm | $1.02\times10^{-12}\%$ | $6.31\times10^{-12}\ \mathrm{A}$ | $6.55\ \mathrm{ms}$ | $9.69\ \mathrm{ms}$ |
+| 方式E | 5000 r/min, +220 Nm | $8.58\times10^{-4}\%$ | $2.68\times10^{-2}\ \mathrm{A}$ | $37.64\ \mathrm{ms}$ | $70.99\ \mathrm{ms}$ |
 | 方式A | 5000 r/min, +220 Nm | $6.52\times10^{-13}\%$ | $1.17\times10^{-12}\ \mathrm{A}$ | $2.75\ \mathrm{ms}$ | $3.64\ \mathrm{ms}$ |
 | 方式B | 5000 r/min, +220 Nm | $2.35\times10^{-13}\%$ | $5.68\times10^{-14}\ \mathrm{A}$ | $1.78\ \mathrm{ms}$ | $0.00\ \mathrm{ms}$ |
 | 方式D1 | 5000 r/min, -220 Nm | $6.97\times10^{-4}\%$ | $4.44\times10^{-2}\ \mathrm{A}$ | $34.05\ \mathrm{ms}$ | $71.62\ \mathrm{ms}$ |
 | 方式C_T | 5000 r/min, -220 Nm | $9.10\times10^{-13}\%$ | $6.37\times10^{-12}\ \mathrm{A}$ | $6.26\ \mathrm{ms}$ | $9.43\ \mathrm{ms}$ |
+| 方式E | 5000 r/min, -220 Nm | $8.70\times10^{-4}\%$ | $2.43\times10^{-2}\ \mathrm{A}$ | $37.79\ \mathrm{ms}$ | $68.53\ \mathrm{ms}$ |
 | 方式A | 5000 r/min, -220 Nm | $5.34\times10^{-13}\%$ | $8.51\times10^{-13}\ \mathrm{A}$ | $2.82\ \mathrm{ms}$ | $3.71\ \mathrm{ms}$ |
 | 方式B | 5000 r/min, -220 Nm | $1.95\times10^{-13}\%$ | $2.27\times10^{-13}\ \mathrm{A}$ | $1.78\ \mathrm{ms}$ | $0.00\ \mathrm{ms}$ |
 | 方式D1 | 1000 r/min, -220 Nm | $3.05\times10^{-6}\%$ | $1.54\times10^{-4}\ \mathrm{A}$ | $26.29\ \mathrm{ms}$ | $46.95\ \mathrm{ms}$ |
 | 方式C_T | 1000 r/min, -220 Nm | $1.58\times10^{-6}\%$ | $5.22\times10^{-6}\ \mathrm{A}$ | $18.05\ \mathrm{ms}$ | $25.58\ \mathrm{ms}$ |
+| 方式E | 1000 r/min, -220 Nm | $6.70\times10^{-2}\%$ | $1.17\ \mathrm{A}$ | $57.84\ \mathrm{ms}$ | $108.22\ \mathrm{ms}$ |
 | 方式A | 1000 r/min, -220 Nm | $1.74\times10^{-12}\%$ | $2.45\times10^{-13}\ \mathrm{A}$ | $3.50\ \mathrm{ms}$ | $3.65\ \mathrm{ms}$ |
 | 方式B | 1000 r/min, -220 Nm | $1.82\times10^{-13}\%$ | $2.34\times10^{-13}\ \mathrm{A}$ | $1.78\ \mathrm{ms}$ | $0.00\ \mathrm{ms}$ |
 
-方式D1は収束がC_Tより遅いが、ゲイン更新が `k` と速度から得るスカラー式で済むため計算負荷が小さい。方式C_TはD1より収束が速く、特に5000 r/min回生での定常誤差が非常に小さい。低速1000 r/min回生では、D1/C_Tとも収束時間が長くなる。これは推定二次磁束座標の速度依存項により、高速時より誤差減衰が遅くなるためである。
+方式D1は収束がC_Tより遅いが、ゲイン更新が `k` と速度から得るスカラー式で済むため計算負荷が小さい。方式C_TはD1より収束が速く、特に5000 r/min回生での定常誤差が非常に小さい。方式Eは高速ではゲインスケジュールにより電圧モデル寄りになるため、初期誤差の減衰はD1/C_Tより遅い。低速1000 r/min回生では、D1/C_T/Eの収束時間が長くなる。これは速度依存ゲインや座標系の速度依存項により、高速時より誤差減衰が遅くなるためである。
 
 ![gain design nominal convergence](figures/gain_design_nominal_convergence.png)
 
-以下に、方式Aの各動作点での一次磁束、二次磁束、一次電流、二次電流の真値とオブザーバ推定値を示す。破線が推定値であり、初期推定誤差を付与した後、各成分が真値へ収束している。方式D1/C_T/Bの収束波形は [figures/gain_design_nominal_convergence.png](figures/gain_design_nominal_convergence.png) に含めた。
+以下に、方式Aの各動作点での一次磁束、二次磁束、一次電流、二次電流の真値とオブザーバ推定値を示す。破線が推定値であり、初期推定誤差を付与した後、各成分が真値へ収束している。方式D1/C_T/E/Bの収束波形は [figures/gain_design_nominal_convergence.png](figures/gain_design_nominal_convergence.png) に含めた。
 
 ![5000 r/min motoring nominal waveform](figures/nominal_waveform_5000rpm_motoring.png)
 
@@ -1191,10 +1340,11 @@ python .\flux_observer_design\scripts\run_gain_design_comparison.py
 |---|---|---:|---:|---|
 | 方式D1 | $L_{ls}$ $+20\%$ | $10.246\%$ | $252.515\ \mathrm{A}$ | 安定 |
 | 方式C_T | $L_{ls}$ $+20\%$ | $7.855\%$ | $23.783\ \mathrm{A}$ | 安定 |
+| 方式E | $R_r$ $-20\%$ | $5.680\%$ | $64.877\ \mathrm{A}$ | 安定 |
 | 方式A | $L_{ls}$ $-20\%$ | $7.502\%$ | $0.941\ \mathrm{A}$ | 安定 |
 | 方式B | $L_{ls}$ $-20\%$ | $7.531\%$ | $5.68\times10^{-14}\ \mathrm{A}$ | 安定 |
 
-方式Aと方式Bでは $L_{ls}$ 誤差に対する二次磁束誤差が最大であり、方式D1/C_Tでも最大感度は $L_{ls}$ 誤差であった。方式D1は二次磁束誤差だけで見るとC_Tと同程度だが、一次電流推定誤差が大きく出やすい。これはD1の座標角速度式に `g3,g4` と電流誤差が直接入るため、定数誤差時に推定座標と電流状態が強く結合することを示す。方式C_Tも推定ロータ磁束座標で電流とロータ磁束を直接状態に持つため、方式A/Bより一次電流誤差は大きく出やすいが、今回条件ではD1より小さい。
+方式Aと方式Bでは $L_{ls}$ 誤差に対する二次磁束誤差が最大であり、方式D1/C_Tでも最大感度は $L_{ls}$ 誤差であった。方式Eでは固定αβ座標の二次磁束オブザーバ式に二次時定数と速度項が直接入るため、この条件では $R_r$ 誤差が最大となった。方式D1は二次磁束誤差だけで見るとC_Tと同程度だが、一次電流推定誤差が大きく出やすい。これはD1の座標角速度式に `g3,g4` と電流誤差が直接入るため、定数誤差時に推定座標と電流状態が強く結合することを示す。方式C_Tも推定ロータ磁束座標で電流とロータ磁束を直接状態に持つため、方式A/Bより一次電流誤差は大きく出やすいが、今回条件ではD1より小さい。
 
 全定数誤差ケースの数値は [data/gain_design_comparison_summary.csv](data/gain_design_comparison_summary.csv) に保存した。方式A単体の定数ごとの掃引結果を以下に示す。
 
@@ -1204,47 +1354,49 @@ python .\flux_observer_design\scripts\run_gain_design_comparison.py
 
 5000 r/min, -220 Nm条件の結果を以下に示す。全方式・全ケースで発散は発生しなかった。
 
-| ケース | D1 二次磁束 | C_T 二次磁束 | A 二次磁束 | B 二次磁束 |
-|---|---:|---:|---:|---:|
-| 電圧ゲイン $+5\%$ | $0.755\%$ | $8.072\%$ | $7.823\%$ | $7.851\%$ |
-| 電圧ゲイン $-5\%$ | $0.865\%$ | $8.083\%$ | $7.823\%$ | $7.851\%$ |
-| 電圧オフセット | $2.168\%$ | $0.270\%$ | $0.763\%$ | $0.770\%$ |
-| 電流ゲイン $+1\%$ | $1.165\%$ | $0.616\%$ | $0.647\%$ | $0.658\%$ |
-| 電流ゲイン $-1\%$ | $1.161\%$ | $0.615\%$ | $0.647\%$ | $0.658\%$ |
-| 電流オフセット | $0.274\%$ | $0.102\%$ | $0.115\%$ | $0.117\%$ |
-| 電流ノイズ $1\ \mathrm{A_{rms}}$ | $0.005\%$ | $0.006\%$ | $0.019\%$ | $0.131\%$ |
+| ケース | D1 二次磁束 | C_T 二次磁束 | E 二次磁束 | A 二次磁束 | B 二次磁束 |
+|---|---:|---:|---:|---:|---:|
+| 電圧ゲイン $+5\%$ | $0.755\%$ | $8.072\%$ | $5.000\%$ | $7.823\%$ | $7.851\%$ |
+| 電圧ゲイン $-5\%$ | $0.865\%$ | $8.083\%$ | $5.000\%$ | $7.823\%$ | $7.851\%$ |
+| 電圧オフセット | $2.168\%$ | $0.270\%$ | $0.491\%$ | $0.763\%$ | $0.770\%$ |
+| 電流ゲイン $+1\%$ | $1.165\%$ | $0.616\%$ | $8.70\times10^{-4}\%$ | $0.647\%$ | $0.658\%$ |
+| 電流ゲイン $-1\%$ | $1.161\%$ | $0.615\%$ | $8.70\times10^{-4}\%$ | $0.647\%$ | $0.658\%$ |
+| 電流オフセット | $0.274\%$ | $0.102\%$ | $8.70\times10^{-4}\%$ | $0.115\%$ | $0.117\%$ |
+| 電流ノイズ $1\ \mathrm{A_{rms}}$ | $0.005\%$ | $0.006\%$ | $8.70\times10^{-4}\%$ | $0.019\%$ | $0.131\%$ |
 
 一次電流RMS誤差は以下である。
 
-| ケース | D1 電流 | C_T 電流 | A 電流 | B 電流 |
-|---|---:|---:|---:|---:|
-| 電圧ゲイン $+5\%$ | $158.586\ \mathrm{A}$ | $12.878\ \mathrm{A}$ | $0.764\ \mathrm{A}$ | $2.34\times10^{-13}\ \mathrm{A}$ |
-| 電圧ゲイン $-5\%$ | $147.389\ \mathrm{A}$ | $13.019\ \mathrm{A}$ | $0.764\ \mathrm{A}$ | $5.68\times10^{-14}\ \mathrm{A}$ |
-| 電圧オフセット | $30.155\ \mathrm{A}$ | $3.531\ \mathrm{A}$ | $0.101\ \mathrm{A}$ | $2.32\times10^{-14}\ \mathrm{A}$ |
-| 電流ゲイン $+1\%$ | $23.192\ \mathrm{A}$ | $6.320\ \mathrm{A}$ | $7.929\ \mathrm{A}$ | $7.974\ \mathrm{A}$ |
-| 電流ゲイン $-1\%$ | $23.638\ \mathrm{A}$ | $6.331\ \mathrm{A}$ | $7.929\ \mathrm{A}$ | $7.974\ \mathrm{A}$ |
-| 電流オフセット | $5.224\ \mathrm{A}$ | $0.999\ \mathrm{A}$ | $1.403\ \mathrm{A}$ | $1.414\ \mathrm{A}$ |
-| 電流ノイズ $1\ \mathrm{A_{rms}}$ | $0.253\ \mathrm{A}$ | $0.209\ \mathrm{A}$ | $0.289\ \mathrm{A}$ | $1.396\ \mathrm{A}$ |
+| ケース | D1 電流 | C_T 電流 | E 電流 | A 電流 | B 電流 |
+|---|---:|---:|---:|---:|---:|
+| 電圧ゲイン $+5\%$ | $158.586\ \mathrm{A}$ | $12.878\ \mathrm{A}$ | $39.863\ \mathrm{A}$ | $0.764\ \mathrm{A}$ | $2.34\times10^{-13}\ \mathrm{A}$ |
+| 電圧ゲイン $-5\%$ | $147.389\ \mathrm{A}$ | $13.019\ \mathrm{A}$ | $39.875\ \mathrm{A}$ | $0.764\ \mathrm{A}$ | $5.68\times10^{-14}\ \mathrm{A}$ |
+| 電圧オフセット | $30.155\ \mathrm{A}$ | $3.531\ \mathrm{A}$ | $3.911\ \mathrm{A}$ | $0.101\ \mathrm{A}$ | $2.32\times10^{-14}\ \mathrm{A}$ |
+| 電流ゲイン $+1\%$ | $23.192\ \mathrm{A}$ | $6.320\ \mathrm{A}$ | $0.024\ \mathrm{A}$ | $7.929\ \mathrm{A}$ | $7.974\ \mathrm{A}$ |
+| 電流ゲイン $-1\%$ | $23.638\ \mathrm{A}$ | $6.331\ \mathrm{A}$ | $0.024\ \mathrm{A}$ | $7.929\ \mathrm{A}$ | $7.974\ \mathrm{A}$ |
+| 電流オフセット | $5.224\ \mathrm{A}$ | $0.999\ \mathrm{A}$ | $0.024\ \mathrm{A}$ | $1.403\ \mathrm{A}$ | $1.414\ \mathrm{A}$ |
+| 電流ノイズ $1\ \mathrm{A_{rms}}$ | $0.253\ \mathrm{A}$ | $0.209\ \mathrm{A}$ | $0.024\ \mathrm{A}$ | $0.289\ \mathrm{A}$ | $1.396\ \mathrm{A}$ |
 
-電圧ゲイン誤差は、C_T/A/Bでは二次磁束スケールに直接影響するため支配的である。一方、D1はこの評価条件では電圧ゲイン誤差の二次磁束感度は比較的小さいが、一次電流推定誤差が大きく出る。方式Bの一次電流誤差が電圧誤差時にほぼ0となるのは、一次電流推定値を測定一次電流として扱うためである。一方、電流ゲイン誤差や電流ノイズは測定電流そのものへ入るため、方式Bの一次電流誤差にはそのまま現れる。
+電圧ゲイン誤差は、C_T/E/A/Bでは二次磁束スケールに直接影響するため支配的である。一方、D1はこの評価条件では電圧ゲイン誤差の二次磁束感度は比較的小さいが、一次電流推定誤差が大きく出る。方式Eは5000 r/minではスケジュール係数がほぼ0となり、電流補正が弱い電圧モデル寄りの挙動になるため、電流測定誤差の影響が小さい。方式Bの一次電流誤差が電圧誤差時にほぼ0となるのは、一次電流推定値を測定一次電流として扱うためである。一方、電流ゲイン誤差や電流ノイズは測定電流そのものへ入るため、方式Bの一次電流誤差にはそのまま現れる。
 
-方式D1/C_T/A/Bの最悪ケース比較を以下に示す。
+方式D1/C_T/E/A/Bの最悪ケース比較を以下に示す。
 
 ![gain design worst error summary](figures/gain_design_worst_error_summary.png)
 
 ### 5.5 結論
 
-本評価では、方式D1、方式C_T、方式A、方式Bを同じ3動作点・同じ定数誤差・同じ電圧電流誤差条件で比較した。無誤差では4方式すべてで推定値が真値へ収束した。誤差あり評価でも、指定範囲の定数誤差、電圧誤差、電流誤差に対して発散は見られず、安定性は維持された。
+本評価では、方式D1、方式C_T、方式E、方式A、方式Bを同じ3動作点・同じ定数誤差・同じ電圧電流誤差条件で比較した。無誤差では5方式すべてで推定値が真値へ収束した。誤差あり評価でも、指定範囲の定数誤差、電圧誤差、電流誤差に対して発散は見られず、安定性は維持された。
 
 方式D1は、Kubota/Matsuse型の `k` 倍極配置ゲインを推定二次磁束d軸座標へ移植した方式である。ゲイン計算が最も軽く、組込み機器への実装性が高いため第1有力方式とする。ただし `k` 選定には注意が必要である。今回の定数では `k=1.5` は5000 r/min回生の初期誤差付き評価で真値とは異なる平衡点へ入りやすかった。評価デフォルトおよびC実装デフォルトは `k=1.2` とした。
 
 方式C_Tは、SLED 2023 Appendix AをT形物理二次磁束で書き直した方式である。D1より計算項数は多いが、無誤差時の収束が速く、誤差時の一次電流推定誤差もD1より小さい。理論の見通しと評価結果の安定さから、第2有力方式とする。
 
+方式Eは、安川電機/Takase 2023のゲインスケジューリング型適応二次磁束オブザーバである。今回の評価では、5000 r/min回生の定数誤差最悪ケースで二次磁束誤差 $5.680\%$ となり、D1/C_T/A/Bの最悪ケースより小さい結果も得られた。一方で、方式Eは論文原式が固定αβ座標であり、低速センサレス安定化を主目的にした設計であるため、推定二次磁束d軸座標で滑りを内部計算するD1/C_Tとは同列の本命候補にはしない。速度適応器まで含めた低速センサレス制御系の比較候補として残す。
+
 方式Aは、4個の実極を直接指定する検証基準として残す。毎周期オンラインでSylvester方程式を解く設計は組込み実装には重いが、他方式の極配置・誤差収束を比較する基準として有用である。
 
 方式Bは、堀ほか1986年論文5.3節に忠実な比較方式として残す。ただし一次電流推定値は測定一次電流に一致するため、今回の「一次電流も独立に推定する同一次元オブザーバ」の本命候補からは外す。
 
-次に実施すべきことは、D1の `k` に対する安定領域の整理、D1/C_Tを実際の電流制御・滑り演算・速度推定ループへ組み込んだ閉ループ評価、低速・弱め界磁・同時定数誤差での評価である。
+次に実施すべきことは、D1の `k` に対する安定領域の整理、D1/C_Tを実際の電流制御・滑り演算・速度推定ループへ組み込んだ閉ループ評価、E式を速度適応器まで含めて低速センサレス系で評価すること、低速・弱め界磁・同時定数誤差での評価である。
 
 ## 付録A. C言語実装
 
@@ -1258,6 +1410,8 @@ C言語実装は以下に追加した。
 | [c/kubota_d1_flux_observer.c](c/kubota_d1_flux_observer.c) | Kubota/Matsuse `k` 倍極配置を推定二次磁束d軸座標へ移植したオブザーバ |
 | [c/sled23_t_flux_observer.h](c/sled23_t_flux_observer.h) | 方式C_Tの公開API |
 | [c/sled23_t_flux_observer.c](c/sled23_t_flux_observer.c) | SLED 2023 Appendix AのT形物理二次磁束版 |
+| [c/yaskawa_e_flux_observer.h](c/yaskawa_e_flux_observer.h) | 方式Eの公開API |
+| [c/yaskawa_e_flux_observer.c](c/yaskawa_e_flux_observer.c) | 安川電機/Takase 2023ゲインスケジューリング方式 |
 | [c/sled23_flux_observer.h](c/sled23_flux_observer.h) | 逆Gamma形SLED実装の公開API |
 | [c/sled23_flux_observer.c](c/sled23_flux_observer.c) | 逆Gamma形SLED実装。T形版との比較用 |
 
@@ -1349,6 +1503,7 @@ C実装のコンパイル確認は以下で行った。
 ```powershell
 gcc -std=c99 -Wall -Wextra -Werror -I .\flux_observer_design\c -c .\flux_observer_design\c\kubota_d1_flux_observer.c
 gcc -std=c99 -Wall -Wextra -Werror -I .\flux_observer_design\c -c .\flux_observer_design\c\sled23_t_flux_observer.c
+gcc -std=c99 -Wall -Wextra -Werror -I .\flux_observer_design\c -c .\flux_observer_design\c\yaskawa_e_flux_observer.c
 ```
 
 方式D1を使う場合は、入力電圧・入力電流を推定二次磁束d軸座標上のd/q値として与える。`k` のデフォルトは今回評価した `1.2` である。
@@ -1403,6 +1558,33 @@ if (status != FLUX_OBSERVER_OK) {
 }
 ```
 
+方式Eを使う場合は、入力電圧・入力電流を固定αβ座標で与える。定格速度とスケジュール比率はAPIで変更できる。デフォルトは、定格速度5000 r/min、$K_1$ が10%から15%、$K_2$ が30%から50%で1から0へ変化する設定である。
+
+```c
+#include "yaskawa_e_flux_observer.h"
+
+YaskawaEFluxObserver observer;
+YaskawaEFluxObserverInput input;
+YaskawaEFluxObserverOutput output;
+FluxObserverStatus status;
+
+YaskawaEFluxObserver_Init(&observer, api);
+YaskawaEFluxObserver_SetRatedSpeed(&observer, 5000.0f);
+YaskawaEFluxObserver_SetSchedule(&observer, 0.10f, 0.15f, 0.30f, 0.50f);
+YaskawaEFluxObserver_ResetFromCurrents(&observer, i_alpha0, i_beta0);
+
+input.us_alpha_v = u_alpha;
+input.us_beta_v = u_beta;
+input.is_alpha_a = i_alpha_meas;
+input.is_beta_a = i_beta_meas;
+input.omega_m_rad_s = omega_m;
+
+status = YaskawaEFluxObserver_Step(&observer, &input, &output);
+if (status != FLUX_OBSERVER_OK) {
+    /* handle API or parameter error */
+}
+```
+
 逆Gamma形SLED 2023 Appendix A方式を使う場合は、入力電圧・入力電流を推定ロータ磁束座標上のd/q値として与える。
 
 ```c
@@ -1445,3 +1627,4 @@ if (status != FLUX_OBSERVER_OK) {
 8. Z. Qu, M. Hinkkanen, and L. Harnefors, "Gain Scheduling of a Full-Order Observer for Sensorless Induction Motor Drives", IEEE Transactions on Industry Applications, vol. 50, no. 6, pp. 3834-3845, 2014. [DOI](https://doi.org/10.1109/TIA.2014.2323482)
 9. Julian Kullick and Christoph M. Hackl, "Speed-Sensorless State Feedback Control of Induction Machines With LC Filter", arXiv:1807.11799, 2018. [arXiv](https://arxiv.org/abs/1807.11799)
 10. Lauri Tiitinen, Marko Hinkkanen, Lennart Harnefors, "Speed-Adaptive Full-Order Observer Revisited: Closed-Form Design for Induction Motor Drives", 2023 IEEE International Symposium on Sensorless Control for Electrical Drives (SLED), 2023. [DOI](https://doi.org/10.1109/SLED57582.2023.10261359)
+11. 高瀬善康, Noor Aamir Baloch, 濱辺恭将, 森本進也, 井手耕三, 佐伯考弘, 「ゲインスケジューリングを伴う適応二次磁束オブザーバによる誘導電動機の低速センサレス制御技術」, 2023年電気学会産業応用部門大会, III-395--III-400, 2023. [PDF](references/IEEJ-BTD2023R03153072_yaskawa_takase2023.pdf)

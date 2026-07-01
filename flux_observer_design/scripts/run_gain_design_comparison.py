@@ -16,6 +16,10 @@ Methods:
     D1_kubota_k1p2_t_type:
         Kubota/Matsuse k-times natural-pole observer, transformed to the
         estimated rotor-flux d-axis coordinates.
+
+    E_yaskawa_gain_scheduled:
+        Yaskawa/Takase 2023 adaptive rotor-flux observer gain scheduling
+        based on Popov hyperstability and the Kalman-Yakubovich lemma.
 """
 
 from __future__ import annotations
@@ -39,11 +43,14 @@ METHOD_A = "A_four_pole_sylvester"
 METHOD_B = "B_hori53_paper"
 METHOD_C = "C_sled23_t_type"
 METHOD_D1 = "D1_kubota_k1p2_t_type"
-METHODS = [METHOD_D1, METHOD_C, METHOD_A, METHOD_B]
+METHOD_E = "E_yaskawa_gain_scheduled"
+METHODS = [METHOD_D1, METHOD_C, METHOD_E, METHOD_A, METHOD_B]
 
 SLED_ALPHA_I = 1000.0
 SLED_ZETA_INF = 0.4
 KUBOTA_D1_K = 1.2
+YASKAWA_E_RATED_SPEED_RPM = 5000.0
+YASKAWA_E_WX_RATIOS = (0.10, 0.15, 0.30, 0.50)
 
 
 @dataclass
@@ -80,6 +87,23 @@ class KubotaD1Derived:
     g2: float
     g3: float
     g4: float
+
+
+@dataclass(frozen=True)
+class YaskawaEDerived:
+    sigma: float
+    epsilon: float
+    a11: np.ndarray
+    a12: np.ndarray
+    a21: np.ndarray
+    a22: np.ndarray
+    b1: np.ndarray
+    g1: float
+    g2: float
+    g3: float
+    g4: float
+    k1_sched: float
+    k2_sched: float
 
 
 def convergence_time(t: np.ndarray, err: np.ndarray, threshold: float) -> float:
@@ -271,6 +295,107 @@ def kubota_d1_step_with_observer_params(
     return x_hat + dt * np.array([disd, disq, dphi], dtype=float), omega_k
 
 
+def j_matrix_2() -> np.ndarray:
+    return np.array([[0.0, -1.0], [1.0, 0.0]], dtype=float)
+
+
+def rotate_dq_to_stationary(theta: float, v_dq: np.ndarray) -> np.ndarray:
+    c = math.cos(theta)
+    s = math.sin(theta)
+    return np.array([c * v_dq[0] - s * v_dq[1], s * v_dq[0] + c * v_dq[1]], dtype=float)
+
+
+def ramp_down_gain(abs_speed: float, w1: float, w2: float) -> float:
+    if abs_speed <= w1:
+        return 1.0
+    if abs_speed >= w2:
+        return 0.0
+    if w2 <= w1:
+        return 0.0
+    return float((w2 - abs_speed) / (w2 - w1))
+
+
+def yaskawa_e_derived(
+    params: fo.MotorParams,
+    omega_m_e: float,
+    rated_speed_rpm: float = YASKAWA_E_RATED_SPEED_RPM,
+    wx_ratios: tuple[float, float, float, float] = YASKAWA_E_WX_RATIOS,
+) -> YaskawaEDerived:
+    """Yaskawa/Takase 2023 Eq. (11) in stationary alpha-beta coordinates."""
+    sigma = 1.0 - params.lm * params.lm / (params.ls * params.lr)
+    epsilon = sigma * params.ls * params.lr / params.lm
+    ident = np.eye(2, dtype=float)
+    j = j_matrix_2()
+    a11_scalar = -(params.rs + params.rr * params.lm * params.lm / (params.lr * params.lr)) / (sigma * params.ls)
+    a11 = a11_scalar * ident
+    a12 = params.lm / (sigma * params.ls * params.lr) * (params.rr / params.lr * ident - omega_m_e * j)
+    a21 = params.lm * params.rr / params.lr * ident
+    a22 = -epsilon * a12
+    b1 = 1.0 / (sigma * params.ls) * ident
+
+    rated_omega_m_e = params.pole_pairs * rated_speed_rpm * 2.0 * math.pi / 60.0
+    wx1, wx2, wx3, wx4 = [abs(rated_omega_m_e) * r for r in wx_ratios]
+    abs_omega = abs(omega_m_e)
+    k1_sched = ramp_down_gain(abs_omega, wx1, wx2)
+    k2_sched = ramp_down_gain(abs_omega, wx3, wx4)
+    t2 = params.lr / params.rr
+    g1_base = -2.0 / t2 + params.rs / (sigma * params.ls) + params.rr / (sigma * params.lr)
+    g1 = g1_base * k1_sched
+    g2 = 0.0
+    g3 = (-epsilon * g1 - epsilon * params.rr / params.lr + params.rs * params.lr / params.lm) * k2_sched
+    g4 = (-epsilon * omega_m_e) * k2_sched
+    return YaskawaEDerived(
+        sigma=sigma,
+        epsilon=epsilon,
+        a11=a11,
+        a12=a12,
+        a21=a21,
+        a22=a22,
+        b1=b1,
+        g1=g1,
+        g2=g2,
+        g3=g3,
+        g4=g4,
+        k1_sched=k1_sched,
+        k2_sched=k2_sched,
+    )
+
+
+def yaskawa_e_step_with_observer_params(
+    obs_params: fo.MotorParams,
+    x_hat: np.ndarray,
+    i_meas: np.ndarray,
+    u_meas: np.ndarray,
+    omega_m_e: float,
+    dt: float,
+) -> np.ndarray:
+    return x_hat + dt * yaskawa_e_derivative_with_observer_params(
+        obs_params=obs_params,
+        x_hat=x_hat,
+        i_meas=i_meas,
+        u_meas=u_meas,
+        omega_m_e=omega_m_e,
+    )
+
+
+def yaskawa_e_derivative_with_observer_params(
+    obs_params: fo.MotorParams,
+    x_hat: np.ndarray,
+    i_meas: np.ndarray,
+    u_meas: np.ndarray,
+    omega_m_e: float,
+) -> np.ndarray:
+    d = yaskawa_e_derived(obs_params, omega_m_e)
+    i_hat = x_hat[0:2]
+    phi_hat = x_hat[2:4]
+    e = i_hat - i_meas
+    g_upper = d.g1 * np.eye(2, dtype=float) + d.g2 * j_matrix_2()
+    g_lower = d.g3 * np.eye(2, dtype=float) + d.g4 * j_matrix_2()
+    di = d.a11 @ i_hat + d.a12 @ phi_hat + d.b1 @ u_meas + g_upper @ e
+    dphi = d.a21 @ i_hat + d.a22 @ phi_hat + g_lower @ e
+    return np.array([di[0], di[1], dphi[0], dphi[1]], dtype=float)
+
+
 def result_from_sled23_t(
     true_params: fo.MotorParams,
     op: fo.OperatingPoint,
@@ -419,6 +544,100 @@ def result_from_kubota_d1(
     )
 
 
+def result_from_yaskawa_e(
+    true_params: fo.MotorParams,
+    op: fo.OperatingPoint,
+    case: fo.ErrorCase,
+    dt: float = 1.0e-5,
+    t_end: float = 0.12,
+    seed: int = 1,
+) -> MethodResult:
+    obs_params = fo.apply_param_scale(true_params, case.param_scale)
+    ss = fo.steady_operating_point(true_params, op)
+    n = int(round(t_end / dt)) + 1
+    t = np.linspace(0.0, t_end, n)
+    i_dq = np.array(ss["i_s"], dtype=float)
+    u_dq = np.array(ss["v_s"], dtype=float)
+    phi_dq = np.array(ss["psi_r"], dtype=float)
+    phi_mag = max(float(np.linalg.norm(phi_dq)), 1.0e-12)
+    i_mag = max(float(np.linalg.norm(i_dq)), 1.0e-12)
+    omega_k = float(ss["omega_k"])
+    omega_m_e = float(ss["omega_r"])
+    x_hat = np.array([0.6 * i_dq[0], 1.4 * i_dq[1], 0.5 * phi_dq[0], 0.25 * phi_mag], dtype=float)
+
+    current_error_norm = np.zeros(n, dtype=float)
+    flux_error_norm = np.zeros(n, dtype=float)
+    stable = True
+    rng = np.random.default_rng(seed)
+    v_offset = np.array([case.voltage_offset_d, case.voltage_offset_q], dtype=float)
+    i_offset = np.array([case.current_offset_d, case.current_offset_q], dtype=float)
+
+    def sampled_vectors(t_sample: float, noise_vec: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        theta_sample = omega_k * t_sample
+        i_sample = rotate_dq_to_stationary(theta_sample, i_dq)
+        u_sample = rotate_dq_to_stationary(theta_sample, u_dq)
+        phi_sample = rotate_dq_to_stationary(theta_sample, phi_dq)
+        # ErrorCase offsets are defined in the same dq coordinates as the other methods.
+        # Rotate them into the paper's stationary alpha-beta implementation.
+        i_off_sample = rotate_dq_to_stationary(theta_sample, i_offset)
+        v_off_sample = rotate_dq_to_stationary(theta_sample, v_offset)
+        i_meas_sample = (1.0 + case.current_gain) * i_sample + i_off_sample + noise_vec
+        u_meas_sample = (1.0 + case.voltage_gain) * u_sample + v_off_sample
+        return i_sample, phi_sample, i_meas_sample, u_meas_sample
+
+    for k in range(n):
+        theta = omega_k * t[k]
+        i_true = rotate_dq_to_stationary(theta, i_dq)
+        phi_true = rotate_dq_to_stationary(theta, phi_dq)
+        current_error_norm[k] = float(np.linalg.norm(x_hat[0:2] - i_true))
+        flux_error_norm[k] = float(np.linalg.norm(x_hat[2:4] - phi_true))
+        if k == n - 1:
+            break
+
+        noise = np.zeros(2, dtype=float)
+        if case.current_noise_rms > 0.0:
+            noise = rng.normal(0.0, case.current_noise_rms, size=2)
+        _, _, i_meas_1, u_meas_1 = sampled_vectors(t[k], noise)
+        _, _, i_meas_2, u_meas_2 = sampled_vectors(t[k] + 0.5 * dt, noise)
+        _, _, i_meas_4, u_meas_4 = sampled_vectors(t[k] + dt, noise)
+        k1 = yaskawa_e_derivative_with_observer_params(obs_params, x_hat, i_meas_1, u_meas_1, omega_m_e)
+        k2 = yaskawa_e_derivative_with_observer_params(
+            obs_params, x_hat + 0.5 * dt * k1, i_meas_2, u_meas_2, omega_m_e
+        )
+        k3 = yaskawa_e_derivative_with_observer_params(
+            obs_params, x_hat + 0.5 * dt * k2, i_meas_2, u_meas_2, omega_m_e
+        )
+        k4 = yaskawa_e_derivative_with_observer_params(obs_params, x_hat + dt * k3, i_meas_4, u_meas_4, omega_m_e)
+        x_hat = x_hat + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+        if not np.all(np.isfinite(x_hat)) or np.max(np.abs(x_hat)) > 1.0e6:
+            stable = False
+            current_error_norm = current_error_norm[: k + 1]
+            flux_error_norm = flux_error_norm[: k + 1]
+            t = t[: k + 1]
+            break
+
+    start = max(0, int(0.8 * len(t)))
+    psi_r_rms = float(np.sqrt(np.mean(flux_error_norm[start:] ** 2)))
+    is_rms = float(np.sqrt(np.mean(current_error_norm[start:] ** 2)))
+    return MethodResult(
+        method=METHOD_E,
+        op=op,
+        case=case,
+        t=t,
+        current_error_norm=current_error_norm,
+        flux_error_norm=flux_error_norm,
+        stable=stable,
+        metrics={
+            "psi_r_rms_wb": psi_r_rms,
+            "psi_r_rel_pct": 100.0 * psi_r_rms / phi_mag,
+            "is_rms_a": is_rms,
+            "is_rel_pct": 100.0 * is_rms / i_mag,
+            "psi_r_conv_time_ms": 1000.0 * convergence_time(t, flux_error_norm, 0.01 * phi_mag),
+            "is_conv_time_ms": 1000.0 * convergence_time(t, current_error_norm, 1.0),
+        },
+    )
+
+
 def run_all() -> list[MethodResult]:
     params = fo.MotorParams()
     ops = fo.base_operating_points(params)
@@ -429,6 +648,7 @@ def run_all() -> list[MethodResult]:
         for idx, case in enumerate(cases):
             results.append(result_from_kubota_d1(params, op, case, seed=4000 + idx))
             results.append(result_from_sled23_t(params, op, case, seed=3000 + idx))
+            results.append(result_from_yaskawa_e(params, op, case, seed=5000 + idx))
             results.append(result_from_flux_evaluation(METHOD_A, params, op, case))
             results.append(result_from_flux_evaluation(METHOD_B, params, op, case))
     return results
@@ -530,16 +750,18 @@ def plot_nominal_convergence(results: list[MethodResult]) -> Path:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     nominal = [r for r in results if r.case.name == "nominal"]
     ops = [r.op.name for r in nominal if r.method == METHOD_D1]
-    fig, axes = plt.subplots(len(ops), 2, figsize=(13, 9.5), sharex=False)
+    fig, axes = plt.subplots(len(ops), 2, figsize=(13.5, 9.8), sharex=False)
     colors = {
         METHOD_D1: "#6f4e7c",
         METHOD_C: "#0072b2",
+        METHOD_E: "#009e73",
         METHOD_A: "#000000",
         METHOD_B: "#e69f00",
     }
     labels = {
         METHOD_D1: "D1 Kubota k=1.2",
         METHOD_C: "C T-type SLED23",
+        METHOD_E: "E Yaskawa GS",
         METHOD_A: "A four-pole",
         METHOD_B: "B Hori 5.3",
     }
@@ -568,7 +790,7 @@ def plot_worst_error_summary(results: list[MethodResult]) -> Path:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     op_name = "5000rpm_-220Nm"
     methods = METHODS
-    labels = ["D1 Kubota", "C T-type", "A four-pole", "B Hori 5.3"]
+    labels = ["D1 Kubota", "C T-type", "E Yaskawa", "A four-pole", "B Hori 5.3"]
     param_psi = []
     sensor_psi = []
     param_i = []
@@ -584,7 +806,7 @@ def plot_worst_error_summary(results: list[MethodResult]) -> Path:
 
     x = np.arange(len(methods))
     width = 0.35
-    fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
     axes[0].bar(x - width / 2, param_psi, width, label="worst parameter error")
     axes[0].bar(x + width / 2, sensor_psi, width, label="worst voltage/current error")
     axes[1].bar(x - width / 2, param_i, width, label="worst parameter error")
