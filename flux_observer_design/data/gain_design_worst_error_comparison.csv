@@ -1,7 +1,9 @@
 method,error_group,worst_case,stable,psi_r_rel_pct,is_rms_a
+D1_kubota_k1p2_t_type,parameter,lls_+20pct,True,10.245585476621452,252.51488846971526
+D1_kubota_k1p2_t_type,voltage_current,voltage_offset_+1Vd_-1Vq,True,2.167986986117161,30.154566668967522
+C_sled23_t_type,parameter,lls_+20pct,True,7.855406721850831,23.783329454646818
+C_sled23_t_type,voltage_current,voltage_gain_-5pct,True,8.08310660264942,13.01905079430826
 A_four_pole_sylvester,parameter,lls_-20pct,True,7.501853849537928,0.9405293341394473
 A_four_pole_sylvester,voltage_current,voltage_gain_+5pct,True,7.822911259757144,0.7640994986470002
 B_hori53_paper,parameter,lls_-20pct,True,7.531461161552336,5.684341886080802e-14
 B_hori53_paper,voltage_current,voltage_gain_+5pct,True,7.851334993585118,2.3437142008433856e-13
-C_sled23_closed_form,parameter,lls_+20pct,True,7.85540672185118,23.783329454647028
-C_sled23_closed_form,voltage_current,voltage_gain_-5pct,True,8.083106602649762,13.019050794309008
