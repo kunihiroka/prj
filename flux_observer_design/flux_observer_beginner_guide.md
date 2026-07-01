@@ -1694,7 +1694,268 @@ k_2=\frac{b\hat{\omega}_m}{\alpha^2+\hat{\omega}_m^2}
 
 である。
 
-### 12.1 なぜこのすべり周波数式になるのか
+### 12.1 T形一般状態方程式としての導出
+
+ここでは、逆Gamma形という名前を使わず、一般的なT形等価回路の定数からSLED方式の状態方程式を導く。使う定数は以下である。
+
+```math
+L_s=L_{ls}+M
+```
+
+```math
+L_r=L_{lr}+M
+```
+
+```math
+D=L_sL_r-M^2
+```
+
+```math
+L_{\sigma}=\frac{D}{L_r}
+```
+
+```math
+\rho=\frac{M}{L_r}
+```
+
+```math
+\alpha=\frac{R_r}{L_r}
+```
+
+```math
+c_r=\frac{R_rM}{L_r}
+```
+
+```math
+R_{\Sigma}=R_s+R_r\left(\frac{M}{L_r}\right)^2
+```
+
+ここで、$\phi_r$ はT形の物理二次磁束である。一次磁束は
+
+```math
+\psi_s=L_{\sigma}i_s+\rho\phi_r
+```
+
+と書ける。
+
+推定二次磁束d軸座標では、推定二次磁束を
+
+```math
+\hat{\phi}_r=
+\begin{bmatrix}
+\hat{\phi} \\
+0
+\end{bmatrix}
+```
+
+と置く。座標角速度を $\omega_s$、オブザーバ内部で使う電気角の回転子速度を $\hat{\omega}_m$ とする。速度センサありの評価では、$\hat{\omega}_m$ は実測した電気角速度 $\omega_m$ に等しい。この座標上で、誤差補正を入れないT形誘導機の状態方程式は次になる。
+
+```math
+L_{\sigma}\dot{i}_{sd}
+=
+\alpha\rho\phi
+-R_{\Sigma}i_{sd}
++\omega_sL_{\sigma}i_{sq}
++u_{sd}
+```
+
+```math
+L_{\sigma}\dot{i}_{sq}
+=
+-\hat{\omega}_m\rho\phi
+-R_{\Sigma}i_{sq}
+-\omega_sL_{\sigma}i_{sd}
++u_{sq}
+```
+
+```math
+\dot{\phi}
+=
+-\alpha\phi
++c_ri_{sd}
+```
+
+q軸二次磁束は0に拘束されるため、その微分も0である。
+
+```math
+0
+=
+c_ri_{sq}
+-
+(\omega_s-\hat{\omega}_m)\phi
+```
+
+したがって、誤差補正なしの通常すべり式は
+
+```math
+\omega_s
+=
+\hat{\omega}_m
++
+\frac{c_ri_{sq}}{\phi}
+```
+
+である。定常状態で $\phi=Mi_{sd}$ なら、
+
+```math
+\omega_s-\hat{\omega}_m
+=
+\frac{R_r}{L_r}\frac{i_{sq}}{i_{sd}}
+```
+
+となる。
+
+### 12.2 SLED方式のオブザーバゲイン要素
+
+SLED方式では、電流推定誤差を
+
+```math
+\tilde{i}_{sd}=i_{sd}-\hat{i}_{sd}
+```
+
+```math
+\tilde{i}_{sq}=i_{sq}-\hat{i}_{sq}
+```
+
+と定義する。設計パラメータは、電流推定誤差の減衰率 $\alpha_i$ と、磁束推定誤差の減衰を決める $b$ である。
+
+```math
+\gamma=\alpha_i-\alpha
+```
+
+```math
+k_1=\frac{b\alpha}{\alpha^2+\hat{\omega}_m^2}
+```
+
+```math
+k_2=\frac{b\hat{\omega}_m}{\alpha^2+\hat{\omega}_m^2}
+```
+
+T形物理二次磁束 $\hat{\phi}$ を状態にしたSLED方式は、次の状態方程式になる。
+
+```math
+L_{\sigma}\dot{\hat{i}}_{sd}
+=
+\alpha\rho\hat{\phi}
+-R_{\Sigma}\hat{i}_{sd}
++\omega_sL_{\sigma}\hat{i}_{sq}
++u_{sd}
++L_{\sigma}
+\left(
+\gamma\tilde{i}_{sd}
+-\hat{\omega}_m\tilde{i}_{sq}
+\right)
+```
+
+```math
+L_{\sigma}\dot{\hat{i}}_{sq}
+=
+-\hat{\omega}_m\rho\hat{\phi}
+-R_{\Sigma}\hat{i}_{sq}
+-\omega_sL_{\sigma}\hat{i}_{sd}
++u_{sq}
++L_{\sigma}
+\left(
+\hat{\omega}_m\tilde{i}_{sd}
++\gamma\tilde{i}_{sq}
+\right)
+```
+
+```math
+\dot{\hat{\phi}}
+=
+-\alpha\hat{\phi}
++c_r\hat{i}_{sd}
++H_{\phi d}\tilde{i}_{sd}
++H_{\phi q}\tilde{i}_{sq}
+```
+
+ここで、磁束状態へ入るゲイン要素は
+
+```math
+H_{\phi d}
+=
+\left(k_1\alpha_i-\gamma\right)\frac{D}{M}
+```
+
+```math
+H_{\phi q}
+=
+-(\omega_s-\hat{\omega}_m)\frac{D}{M}
+```
+
+である。
+
+電流状態へ入るゲインを、微分方程式の右辺、つまり $\dot{\hat{i}}$ に対するゲインとして書けば、
+
+```math
+H_i
+=
+\begin{bmatrix}
+\gamma & -\hat{\omega}_m \\
+\hat{\omega}_m & \gamma
+\end{bmatrix}
+```
+
+である。一方、上の状態方程式のように $L_{\sigma}\dot{\hat{i}}$ の右辺へ入れる形で書けば、
+
+```math
+L_{\sigma}H_i
+=
+L_{\sigma}
+\begin{bmatrix}
+\gamma & -\hat{\omega}_m \\
+\hat{\omega}_m & \gamma
+\end{bmatrix}
+```
+
+である。したがって、T形物理二次磁束を状態にした場合のオブザーバゲイン要素は、次のように整理できる。
+
+| 入る状態 | $\tilde{i}_{sd}$ 係数 | $\tilde{i}_{sq}$ 係数 |
+|---|---:|---:|
+| $\dot{\hat{i}}_{sd}$ | $\gamma$ | $-\hat{\omega}_m$ |
+| $\dot{\hat{i}}_{sq}$ | $\hat{\omega}_m$ | $\gamma$ |
+| $\dot{\hat{\phi}}$ | $(k_1\alpha_i-\gamma)D/M$ | $-(\omega_s-\hat{\omega}_m)D/M$ |
+
+さらに、$\hat{\phi}_q=0$ を保つため、q軸二次磁束微分を0にする。q軸側は独立した状態として積分しないが、拘束式の中には次の補正係数が入る。
+
+| 拘束式に入る項 | $\tilde{i}_{sd}$ 係数 | $\tilde{i}_{sq}$ 係数 |
+|---|---:|---:|
+| $\dot{\hat{\phi}}_q=0$ | $k_2\alpha_iD/M$ | $-\gamma D/M$ |
+
+したがって、q軸拘束式は次になる。
+
+```math
+0
+=
+c_ri_{sq}
++k_2\alpha_i\frac{D}{M}\tilde{i}_{sd}
+-\gamma\frac{D}{M}\tilde{i}_{sq}
+-(\omega_s-\hat{\omega}_m)
+\left(
+\hat{\phi}-\frac{D}{M}\tilde{i}_{sd}
+\right)
+```
+
+これを $\omega_s$ について解くと、
+
+```math
+\omega_s
+=
+\hat{\omega}_m
++
+\frac{
+c_ri_{sq}
++k_2\alpha_i(D/M)\tilde{i}_{sd}
+-\gamma(D/M)\tilde{i}_{sq}
+}{
+\hat{\phi}-(D/M)\tilde{i}_{sd}
+}
+```
+
+となる。ここまでの式は、逆Gamma形の $L_M,R_R,R_{\sigma}$ を使わず、T形の $R_s,R_r,L_{ls},L_{lr},M$ だけで書かれている。SLED Appendix Aの式と同じ内容だが、状態をスケーリング済み磁束 $\psi_R$ ではなく、物理二次磁束 $\phi$ として書いた形である。
+
+### 12.3 なぜこのすべり周波数式になるのか
 
 方式Cの核心は、推定ロータ磁束座標を使うことである。この座標では、
 
@@ -2518,7 +2779,167 @@ g_4
 
 以上が、Kubota/Matsuse 1991の `g1..g4` の導出である。要するに、`g1,g2` はトレース、つまり極の和を `k` 倍にするために決まり、`g3,g4` は行列式、つまり極の積を `k^2` 倍にするために決まる。
 
-#### 17.2.5 Kubota/Matsuse/Nakano 1993との関係
+#### 17.2.5 推定二次磁束d軸座標への移植
+
+Kubota/Matsuse型の `k` 倍極配置は、推定二次磁束d軸座標にも移植できる。ポイントは、元論文のゲイン `G` が
+
+```math
+g_1I+g_2J
+```
+
+および
+
+```math
+g_3I+g_4J
+```
+
+というd/q対称な構造を持つことである。この形は座標回転と可換なので、固定座標で計算した `g1..g4` を、推定二次磁束d軸座標上でも同じ係数として使える。
+
+ただし、推定二次磁束d軸座標では、
+
+```math
+\hat{\phi}_{rq}=0
+```
+
+を常に満たす必要がある。したがって、q軸二次磁束状態を独立に積分するのではなく、座標角速度 $\omega_k$ を代数的に決める。
+
+ここでは、推定誤差をKubota/Matsuse論文と同じ符号で
+
+```math
+e_d=\hat{i}_{sd}-i_{sd}
+```
+
+```math
+e_q=\hat{i}_{sq}-i_{sq}
+```
+
+と定義する。推定二次磁束d軸座標での状態は
+
+```math
+\hat{x}
+=
+\begin{bmatrix}
+\hat{i}_{sd} \\
+\hat{i}_{sq} \\
+\hat{\phi}
+\end{bmatrix}
+```
+
+である。$\hat{\phi}$ はT形の物理二次磁束のd軸成分であり、q軸成分は0に拘束する。
+
+このとき、Kubota/Matsuse型を移植したオブザーバは次になる。
+
+```math
+\dot{\hat{i}}_{sd}
+=
+a_{r11}\hat{i}_{sd}
++\omega_k\hat{i}_{sq}
++a_{r12}\hat{\phi}
++b_1u_{sd}
++g_1e_d
+-g_2e_q
+```
+
+```math
+\dot{\hat{i}}_{sq}
+=
+a_{r11}\hat{i}_{sq}
+-\omega_k\hat{i}_{sd}
++a_{i12}\hat{\phi}
++b_1u_{sq}
++g_2e_d
++g_1e_q
+```
+
+```math
+\dot{\hat{\phi}}
+=
+a_{r21}\hat{i}_{sd}
++a_{r22}\hat{\phi}
++g_3e_d
+-g_4e_q
+```
+
+座標角速度 $\omega_k$ は、$\dot{\hat{\phi}}_{rq}=0$ から決まる。q軸二次磁束の微分は
+
+```math
+0
+=
+a_{r21}\hat{i}_{sq}
++(a_{i22}-\omega_k)\hat{\phi}
++g_4e_d
++g_3e_q
+```
+
+である。したがって、
+
+```math
+\omega_k
+=
+a_{i22}
++
+\frac{
+a_{r21}\hat{i}_{sq}
++g_4e_d
++g_3e_q
+}{
+\hat{\phi}
+}
+```
+
+となる。ここで $a_{i22}$ は電気角の回転子速度であり、通常は
+
+```math
+a_{i22}=\hat{\omega}_m
+```
+
+である。
+
+推定誤差が0なら、
+
+```math
+\omega_k-\hat{\omega}_m
+=
+\frac{a_{r21}\hat{i}_{sq}}{\hat{\phi}}
+```
+
+となる。$a_{r21}=R_rM/L_r$ なので、
+
+```math
+\omega_k-\hat{\omega}_m
+=
+\frac{(R_rM/L_r)\hat{i}_{sq}}{\hat{\phi}}
+```
+
+である。定常状態で $\hat{\phi}=M\hat{i}_{sd}$ なら、
+
+```math
+\omega_k-\hat{\omega}_m
+=
+\frac{R_r}{L_r}\frac{\hat{i}_{sq}}{\hat{i}_{sd}}
+```
+
+となり、通常の二次磁束基準すべり式に一致する。
+
+この移植方式の重要点は次である。
+
+| 観点 | 内容 |
+|---|---|
+| ゲイン計算 | 元論文の `g1..g4` をそのまま使う |
+| 座標 | 推定二次磁束をd軸に取り、$\hat{\phi}_{rq}=0$ とする |
+| 追加される式 | $\dot{\hat{\phi}}_{rq}=0$ から $\omega_k$ を計算する |
+| 状態数 | $\hat{i}_{sd},\hat{i}_{sq},\hat{\phi}$ の3状態 + 角度積分 |
+| 注意点 | `g1..g4` は任意極配置ではなく、誘導機固有極の `k` 倍配置 |
+
+SLED方式との違いは、$\omega_k$ の式とゲインの作り方にある。SLED方式では、$\omega_s$ の分母に
+
+```math
+\hat{\phi}-(D/M)\tilde{i}_{sd}
+```
+
+が現れ、電流推定誤差を含めたq軸磁束拘束になる。一方、Kubota/Matsuse移植方式では、元の完全次元オブザーバを座標変換して $\hat{\phi}_{rq}=0$ を課すため、基本形では分母は $\hat{\phi}$ になる。
+
+#### 17.2.6 Kubota/Matsuse/Nakano 1993との関係
 
 Kubota, Matsuse, Nakanoの1993年IEEE論文は、DSP上で動く速度適応磁束オブザーバとしてよく参照される古典である。1991年のIAS会議版も存在する。SLED 2023の序論でも、これらの初期研究は速度適応フルオーダオブザーバの出発点として位置付けられている。
 
@@ -2535,7 +2956,7 @@ k \times
 
 一方、Kubota/Matsuse/Nakano 1993 DSP論文については、現時点では書誌と引用関係のみ確認済みであり、ゲイン設計式の本文確認は未了である。
 
-#### 17.2.6 速度適応FOOとしての一般構造
+#### 17.2.7 速度適応FOOとしての一般構造
 
 速度適応磁束オブザーバとして見ると、この系統で重要なのは、磁束オブザーバ単体ではなく、速度適応則まで含めた構成である。すなわち、オブザーバで一次電流と二次磁束を推定し、測定電流と推定電流の差から速度推定値を更新する。
 

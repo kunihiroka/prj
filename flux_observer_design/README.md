@@ -31,7 +31,7 @@ L_s=L_{ls}+M,\qquad L_r=L_{lr}+M,\qquad D=L_sL_r-M^2
 
 方式Aの詳細評価は [scripts/run_flux_observer_evaluation.py](scripts/run_flux_observer_evaluation.py) に、3方式の共通評価は [scripts/run_gain_design_comparison.py](scripts/run_gain_design_comparison.py) にまとめている。C言語実装は [c/flux_observer.c](c/flux_observer.c)、[c/flux_observer.h](c/flux_observer.h)、[c/sled23_flux_observer.c](c/sled23_flux_observer.c)、[c/sled23_flux_observer.h](c/sled23_flux_observer.h) に置いた。
 
-初学者向けに、式変形とゲイン設計をより丁寧に追った補足資料を [flux_observer_beginner_guide.md](flux_observer_beginner_guide.md) に作成した。
+初学者向けに、式変形とゲイン設計をより丁寧に追った補足資料を [flux_observer_beginner_guide.md](flux_observer_beginner_guide.md) に作成した。SLED方式を逆Gamma形ではなくT形の一般状態方程式から導く手順、SLED方式の推定二次磁束d軸座標でのゲイン要素、およびKubota/Matsuse型 `k` 倍極配置ゲインを推定二次磁束d軸座標へ移植する式は、この補足資料の12章と17.2.5節にまとめた。
 
 ## 1. 概要
 
